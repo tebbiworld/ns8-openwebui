@@ -1,0 +1,17 @@
+{
+  "name": "Open WebUI",
+  "description": {
+    "en": "Open WebUI — self-hosted AI chat interface for local Ollama models",
+    "de": "Open WebUI — selbst gehostete KI-Chat-Oberfläche für lokale Ollama-Modelle"
+  },
+  "categories": ["development", "productivity"],
+  "authors": [
+    { "name": "tebbi", "email": "info@ebbinghaus.world" }
+  ],
+  "docs": {
+    "documentation_url": "https://docs.openwebui.com/",
+    "bug_url": "https://github.com/tebbiworld/ns8-openwebui/issues",
+    "code_url": "https://github.com/tebbiworld/ns8-openwebui"
+  },
+  "source": "ghcr.io/tebbiworld/openwebui"
+}

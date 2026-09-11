@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Enable and (re)start the Open WebUI pod. Restarting the pod unit cascades to
+# the Ollama and Open WebUI containers through the unit dependencies.
+
+import subprocess
+
+units = ["openwebui.service", "openwebui-ollama.service", "openwebui-app.service"]
+subprocess.run(["systemctl", "--user", "enable", *units], check=True)
+subprocess.run(["systemctl", "--user", "restart", "openwebui.service"], check=True)

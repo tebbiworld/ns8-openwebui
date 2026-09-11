@@ -1,0 +1,76 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Configure openwebui",
+    "$id": "http://nethserver.org/json-schema/task/input/openwebui/configure-module",
+    "description": "Configure the Open WebUI + Ollama module",
+    "examples": [
+        {
+            "host": "chat.example.org",
+            "lets_encrypt": true,
+            "http2https": true,
+            "webui_name": "Example AI",
+            "enable_signup": true,
+            "default_user_role": "pending",
+            "enable_openai_api": false,
+            "ollama_keep_alive": "5m",
+            "timezone": "Europe/Berlin"
+        }
+    ],
+    "type": "object",
+    "required": ["host"],
+    "properties": {
+        "host": {
+            "type": "string",
+            "title": "Host name",
+            "description": "Fully qualified domain name under which Open WebUI is published.",
+            "format": "hostname",
+            "pattern": "\\."
+        },
+        "lets_encrypt": {
+            "type": "boolean",
+            "title": "Let's Encrypt certificate",
+            "description": "Request a valid Let's Encrypt certificate for the host name."
+        },
+        "http2https": {
+            "type": "boolean",
+            "title": "HTTP to HTTPS redirection",
+            "description": "Redirect all HTTP requests to HTTPS."
+        },
+        "webui_name": {
+            "type": "string",
+            "title": "Interface name",
+            "description": "Display name shown in the Open WebUI interface (WEBUI_NAME)."
+        },
+        "enable_signup": {
+            "type": "boolean",
+            "title": "Allow self-registration",
+            "description": "Let visitors create their own account (ENABLE_SIGNUP). The very first account always becomes the administrator. Turn off once your users exist.",
+            "default": true
+        },
+        "default_user_role": {
+            "type": "string",
+            "title": "Default role for new accounts",
+            "description": "Role assigned to newly registered users (DEFAULT_USER_ROLE). 'pending' requires admin approval before login.",
+            "enum": ["pending", "user", "admin"],
+            "default": "pending"
+        },
+        "enable_openai_api": {
+            "type": "boolean",
+            "title": "Enable OpenAI-compatible API",
+            "description": "Also allow external OpenAI-compatible endpoints in addition to the bundled Ollama (ENABLE_OPENAI_API). Keep off for a self-contained, local-only setup.",
+            "default": false
+        },
+        "ollama_keep_alive": {
+            "type": "string",
+            "title": "Model keep-alive",
+            "description": "How long Ollama keeps a model loaded in memory after the last request (OLLAMA_KEEP_ALIVE), e.g. 5m, 1h, or -1 to keep loaded.",
+            "default": "5m"
+        },
+        "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "TZ database name for scheduling and log timestamps, e.g. Europe/Berlin.",
+            "default": "UTC"
+        }
+    }
+}

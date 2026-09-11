@@ -1,0 +1,57 @@
+{
+    "common": { "required": "Required", "processing": "Processing..." },
+    "status": {
+        "title": "Status", "app_instance": "App instance",
+        "services": "Service | Services", "app_images": "App image | App images",
+        "app_volumes": "App volume | App volumes", "installation_node": "Installation node",
+        "node": "Node", "name": "Name", "size": "Size", "created": "Created", "mount": "Mount",
+        "no_services": "No services", "no_images": "No images", "no_volumes": "No volumes"
+    },
+    "settings": {
+        "title": "Settings", "configure_instance": "Configure {instance}", "save": "Save",
+        "host": "Host name (FQDN)", "host_placeholder": "chat.example.org",
+        "host_helper": "Public host name Open WebUI is published on. It must resolve to this server.",
+        "lets_encrypt": "Request Let's Encrypt certificate", "http2https": "Redirect HTTP to HTTPS",
+        "enabled": "Enabled", "disabled": "Disabled",
+
+        "access_section": "Access",
+        "webui_name": "Interface name",
+        "webui_name_placeholder": "Open WebUI",
+        "webui_name_helper": "Display name shown in the chat interface (WEBUI_NAME).",
+        "enable_signup": "Allow self-registration",
+        "default_user_role": "Default role for new accounts",
+        "default_user_role_helper": "Role assigned to newly registered users. 'Pending approval' requires an admin to approve them before they can log in.",
+        "role_pending": "Pending approval",
+        "role_user": "User",
+        "role_admin": "Administrator",
+        "enable_openai_api": "Enable OpenAI-compatible API",
+
+        "engine_section": "Inference engine",
+        "ollama_keep_alive": "Model keep-alive",
+        "ollama_keep_alive_placeholder": "5m",
+        "ollama_keep_alive_helper": "How long Ollama keeps a model loaded in memory after the last request, e.g. 5m, 1h, or -1 to keep it loaded.",
+        "timezone": "Timezone",
+        "timezone_placeholder": "UTC",
+        "timezone_helper": "TZ database name for scheduling and log timestamps, e.g. Europe/Berlin.",
+
+        "web_url": "Web application", "web_url_desc": "Open the chat interface in the browser at {url}",
+        "models_hint_title": "First steps",
+        "models_hint_desc": "The very first account you register becomes the administrator. Then pull a model from the Admin Panel → Settings → Models (e.g. llama3.2). Inference runs on CPU by default.",
+        "domain_already_used_in_traefik": "This host name is already used by another instance."
+    },
+    "about": { "title": "About" },
+    "task": { "cannot_create_task": "Cannot create task {action}" },
+    "action": {
+        "get-status": "Get status", "get-configuration": "Get configuration",
+        "configure-module": "Configure module", "get-module-info": "Get module info", "get-name": "Get name",
+        "list-backup-repositories": "List backup repositories", "list-backups": "List backups",
+        "list-installed-modules": "List installed modules"
+    },
+    "error": {
+        "error": "Error", "generic_error": "Something went wrong", "validation_error": "Validation error",
+        "network_error": "Network error", "network_timeout": "Network timeout",
+        "401": "Invalid authentication", "403": "Operation not authorized", "404": "Resource not found",
+        "cannot_retrieve_module_info": "Cannot retrieve module info",
+        "cannot_retrieve_installed_modules": "Cannot retrieve installed modules"
+    }
+}

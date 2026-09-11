@@ -1,0 +1,40 @@
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Rootless pod for the Open WebUI + Ollama module.
+#
+# Port model (no dedicated IP required): the Open WebUI frontend (container
+# 8080) is published on the node loopback and fronted by Traefik on the
+# configured host name. Ollama (container 11434) stays inside the pod network
+# and is reached by Open WebUI over the shared pod localhost, so it is never
+# exposed on the node. Everything Open WebUI serves (HTTP + WebSocket) goes
+# through the single HTTPS host, so no extra node ports are needed.
+
+[Unit]
+Description=Open WebUI pod
+Requires=openwebui-ollama.service openwebui-app.service
+Before=openwebui-ollama.service openwebui-app.service
+
+[Service]
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%S/state/environment
+Restart=always
+TimeoutStopSec=70
+ExecStartPre=/bin/rm -f %t/openwebui.pid %t/openwebui.pod-id
+ExecStartPre=/usr/bin/podman pod create \
+    --infra-conmon-pidfile %t/openwebui.pid \
+    --pod-id-file %t/openwebui.pod-id \
+    --name openwebui \
+    --hostname ${OPENWEBUI_CONTAINER_HOSTNAME} \
+    --publish 127.0.0.1:${WEB_PORT}:8080 \
+    --replace
+ExecStart=/usr/bin/podman pod start --pod-id-file %t/openwebui.pod-id
+ExecStop=/usr/bin/podman pod stop --ignore --pod-id-file %t/openwebui.pod-id -t 30
+ExecStopPost=/usr/bin/podman pod rm --ignore -f --pod-id-file %t/openwebui.pod-id
+PIDFile=%t/openwebui.pid
+Type=forking
+
+[Install]
+WantedBy=default.target

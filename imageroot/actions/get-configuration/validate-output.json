@@ -1,0 +1,19 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "get-configuration output",
+    "$id": "http://schema.nethserver.org/openwebui/get-configuration-output.json",
+    "description": "Get Open WebUI configuration",
+    "type": "object",
+    "properties": {
+        "host": { "type": "string" },
+        "http2https": { "type": "boolean" },
+        "lets_encrypt": { "type": "boolean" },
+        "webui_name": { "type": "string" },
+        "enable_signup": { "type": "boolean" },
+        "default_user_role": { "type": "string" },
+        "enable_openai_api": { "type": "boolean" },
+        "ollama_keep_alive": { "type": "string" },
+        "timezone": { "type": "string" },
+        "url": { "type": "string" }
+    }
+}

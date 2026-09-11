@@ -1,0 +1,54 @@
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Open WebUI frontend (ghcr.io/open-webui/open-webui). Serves the chat web
+# interface on container port 8080 and talks to the Ollama backend over the
+# shared pod localhost (OLLAMA_BASE_URL=http://localhost:11434).
+#
+# Storage (isolated rootless named volume, never host paths):
+#   /app/backend/data - SQLite database, uploaded files, RAG vector store,
+#                       user avatars and the generated config
+#
+# Reverse-proxy awareness: Traefik terminates TLS on 443 and transparently
+# proxies the WebSocket connection Open WebUI uses. WEBUI_URL is set to the
+# public HTTPS address so OAuth/redirect links and websocket origins are correct.
+
+[Unit]
+Description=Open WebUI frontend
+BindsTo=openwebui.service
+After=openwebui.service openwebui-ollama.service
+
+[Service]
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%S/state/environment
+WorkingDirectory=%S/state
+Restart=always
+TimeoutStartSec=300
+TimeoutStopSec=70
+ExecStartPre=/bin/rm -f %t/openwebui-app.pid %t/openwebui-app.ctr-id
+ExecStart=/usr/bin/podman run \
+    --conmon-pidfile %t/openwebui-app.pid \
+    --cidfile %t/openwebui-app.ctr-id \
+    --cgroups=no-conmon \
+    --pod-id-file %t/openwebui.pod-id \
+    --replace -d --name openwebui-app \
+    --env "OLLAMA_BASE_URL=http://localhost:11434" \
+    --env "WEBUI_URL=${WEBUI_URL}" \
+    --env "WEBUI_NAME=${WEBUI_NAME}" \
+    --env "WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY}" \
+    --env "ENABLE_SIGNUP=${ENABLE_SIGNUP}" \
+    --env "ENABLE_OPENAI_API=${ENABLE_OPENAI_API}" \
+    --env "DEFAULT_USER_ROLE=${DEFAULT_USER_ROLE}" \
+    --env "TZ=${TZ}" \
+    --volume openwebui-data:/app/backend/data:z \
+    ${OPEN_WEBUI_IMAGE}
+ExecStop=/usr/bin/podman stop --ignore --cidfile %t/openwebui-app.ctr-id -t 30
+ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/openwebui-app.ctr-id
+PIDFile=%t/openwebui-app.pid
+Type=forking
+SyslogIdentifier=%u
+
+[Install]
+WantedBy=default.target

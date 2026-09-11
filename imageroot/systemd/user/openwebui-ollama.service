@@ -1,0 +1,46 @@
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Ollama inference backend. Runs inside the pod network and binds its API to the
+# pod-local 127.0.0.1:11434, where Open WebUI reaches it. It is never published
+# on the node.
+#
+# Storage (isolated rootless named volume, never host paths):
+#   /root/.ollama - pulled models, manifests and blobs
+#
+# Inference is CPU-only in the rootless pod. GPU passthrough requires host-level
+# CDI setup and is out of scope for the default deployment (see README).
+
+[Unit]
+Description=Ollama inference backend
+BindsTo=openwebui.service
+After=openwebui.service
+
+[Service]
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%S/state/environment
+WorkingDirectory=%S/state
+Restart=always
+TimeoutStartSec=300
+TimeoutStopSec=70
+ExecStartPre=/bin/rm -f %t/openwebui-ollama.pid %t/openwebui-ollama.ctr-id
+ExecStart=/usr/bin/podman run \
+    --conmon-pidfile %t/openwebui-ollama.pid \
+    --cidfile %t/openwebui-ollama.ctr-id \
+    --cgroups=no-conmon \
+    --pod-id-file %t/openwebui.pod-id \
+    --replace -d --name openwebui-ollama \
+    --env "OLLAMA_HOST=127.0.0.1:11434" \
+    --env "OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE}" \
+    --volume openwebui-ollama:/root/.ollama:z \
+    ${OLLAMA_IMAGE}
+ExecStop=/usr/bin/podman stop --ignore --cidfile %t/openwebui-ollama.ctr-id -t 30
+ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/openwebui-ollama.ctr-id
+PIDFile=%t/openwebui-ollama.pid
+Type=forking
+SyslogIdentifier=%u
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Store the Traefik transport settings and the Open WebUI runtime configuration.
+
+import os
+import sys
+import json
+
+import agent
+
+
+def as_bool_str(value, default=False):
+    # Normalise a JSON boolean (or truthy string) to the "true"/"false" strings
+    # the Open WebUI container expects in its environment.
+    if isinstance(value, str):
+        value = value.strip().lower() in ("1", "true", "yes", "on")
+    return "true" if bool(value) else "false"
+
+
+data = json.load(sys.stdin)
+
+host = data["host"]
+
+# Traefik transport.
+agent.set_env("TRAEFIK_HOST", host)
+agent.set_env("TRAEFIK_HTTP2HTTPS", data.get("http2https", True))
+
+# Public HTTPS address Open WebUI advertises (redirects, websocket origin).
+agent.set_env("WEBUI_URL", f"https://{host}")
+
+# Branding and access policy.
+agent.set_env("WEBUI_NAME", data.get("webui_name") or "Open WebUI")
+agent.set_env("ENABLE_SIGNUP", as_bool_str(data.get("enable_signup", True), True))
+agent.set_env("ENABLE_OPENAI_API", as_bool_str(data.get("enable_openai_api", False), False))
+agent.set_env("DEFAULT_USER_ROLE", data.get("default_user_role") or "pending")
+
+# Ollama model residency.
+agent.set_env("OLLAMA_KEEP_ALIVE", data.get("ollama_keep_alive") or "5m")
+
+agent.set_env("TZ", data.get("timezone") or "UTC")
+
+agent.dump_env()

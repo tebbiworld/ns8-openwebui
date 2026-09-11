@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Seed the initial environment for a fresh Open WebUI + Ollama instance.
+
+import os
+import secrets
+
+import agent
+
+# One allocated TCP port fronts the Open WebUI frontend (container 8080) through
+# Traefik on the configured host name. Ollama stays pod-internal.
+tcp_ports = [p.strip() for p in os.environ.get("TCP_PORTS", "").split(",") if p.strip()]
+web_port = tcp_ports[0] if tcp_ports else "8080"
+agent.set_env("WEB_PORT", web_port)
+
+# Stable pod hostname derived from the immutable module id.
+agent.set_env("OPENWEBUI_CONTAINER_HOSTNAME", os.environ["MODULE_ID"])
+
+# JWT signing key for Open WebUI sessions. Generated once and kept stable so
+# existing sessions survive restarts and container recreation.
+agent.set_env("WEBUI_SECRET_KEY", secrets.token_hex(32))
+
+# Defaults that stay until the admin configures the module.
+agent.set_env("WEBUI_URL", "")
+agent.set_env("WEBUI_NAME", "Open WebUI")
+# Signup starts enabled so the very first visitor can register and become the
+# administrator; the admin can turn it off afterwards from the settings page.
+agent.set_env("ENABLE_SIGNUP", "true")
+agent.set_env("ENABLE_OPENAI_API", "false")
+agent.set_env("DEFAULT_USER_ROLE", "pending")
+# How long Ollama keeps a model resident in memory after the last request.
+agent.set_env("OLLAMA_KEEP_ALIVE", "5m")
+agent.set_env("TZ", "UTC")
+
+agent.dump_env()
