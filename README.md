@@ -58,7 +58,7 @@ details; users then log in with their AD/LDAP accounts.
 | Bind DN | `LDAP_APP_DN` | Service account used to search the directory. |
 | Bind password | `LDAP_APP_PASSWORD` | Password of the service account (blank on save keeps the stored one). |
 | Username attribute | `LDAP_ATTRIBUTE_FOR_USERNAME` | `sAMAccountName` (AD) or `uid` (OpenLDAP). |
-| Mail attribute | `LDAP_ATTRIBUTE_FOR_MAIL` | Defaults to `mail`. |
+| Mail attribute | `LDAP_ATTRIBUTE_FOR_MAIL` | Open WebUI requires every user to have an e-mail. Defaults to `mail`; on Active Directory where `mail` is empty, use `userPrincipalName`. |
 | Search filter | `LDAP_SEARCH_FILTER` | Optional; restrict login, e.g. `(memberOf=CN=ai-users,...)`. |
 | Validate LDAPS certificate | `LDAP_VALIDATE_CERT` | Off by default for internal CAs / self-signed certs. |
 

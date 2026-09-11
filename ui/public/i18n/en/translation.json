@@ -51,6 +51,7 @@
         "ldap_user_attribute_helper": "Attribute matched against the entered user name. sAMAccountName for Active Directory, uid for OpenLDAP.",
         "ldap_mail_attribute": "Mail attribute",
         "ldap_mail_attribute_placeholder": "mail",
+        "ldap_mail_attribute_helper": "Open WebUI requires every user to have an e-mail. Defaults to mail; on Active Directory where mail is empty, use userPrincipalName.",
         "ldap_search_filter": "Search filter (optional)",
         "ldap_search_filter_placeholder": "(memberOf=CN=ai-users,OU=Groups,DC=ad,DC=example,DC=org)",
         "ldap_search_filter_helper": "Optional filter to restrict who may log in. Empty means any directory user.",

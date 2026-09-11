@@ -121,7 +121,7 @@
         "ldap_mail_attribute": {
             "type": "string",
             "title": "Mail attribute",
-            "description": "Attribute holding the user's e-mail (LDAP_ATTRIBUTE_FOR_MAIL). Defaults to mail."
+            "description": "Attribute holding the user's e-mail (LDAP_ATTRIBUTE_FOR_MAIL). Open WebUI requires every user to have one. Defaults to mail; on Active Directory where mail is not populated, use userPrincipalName."
         },
         "ldap_search_filter": {
             "type": "string",

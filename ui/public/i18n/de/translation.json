@@ -51,6 +51,7 @@
         "ldap_user_attribute_helper": "Attribut, das mit dem eingegebenen Benutzernamen abgeglichen wird. sAMAccountName für Active Directory, uid für OpenLDAP.",
         "ldap_mail_attribute": "E-Mail-Attribut",
         "ldap_mail_attribute_placeholder": "mail",
+        "ldap_mail_attribute_helper": "Open WebUI verlangt für jeden Nutzer eine E-Mail. Standard ist mail; bei Active Directory ohne gepflegtes mail-Attribut userPrincipalName verwenden.",
         "ldap_search_filter": "Suchfilter (optional)",
         "ldap_search_filter_placeholder": "(memberOf=CN=ai-users,OU=Groups,DC=ad,DC=example,DC=org)",
         "ldap_search_filter_helper": "Optionaler Filter, um die Anmeldung einzuschränken. Leer bedeutet: jeder Verzeichnisbenutzer.",

@@ -144,6 +144,7 @@
                 :label="$t('settings.ldap_mail_attribute')"
                 v-model.trim="ldap_mail_attribute"
                 :placeholder="$t('settings.ldap_mail_attribute_placeholder')"
+                :helper-text="$t('settings.ldap_mail_attribute_helper')"
                 :disabled="loading.getConfiguration || loading.configureModule"
                 class="field"
               ></cv-text-input>
