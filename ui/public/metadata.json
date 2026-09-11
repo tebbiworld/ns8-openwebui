@@ -1,8 +1,8 @@
 {
   "name": "Open WebUI",
   "description": {
-    "en": "Open WebUI — self-hosted AI chat interface for local Ollama models",
-    "de": "Open WebUI — selbst gehostete KI-Chat-Oberfläche für lokale Ollama-Modelle"
+    "en": "Open WebUI — self-hosted AI chat interface for an external Ollama backend, with AD/LDAP login",
+    "de": "Open WebUI — selbst gehostete KI-Chat-Oberfläche für ein externes Ollama-Backend, mit AD/LDAP-Anmeldung"
   },
   "categories": ["development", "productivity"],
   "authors": [

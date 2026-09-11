@@ -9,11 +9,21 @@
         "http2https": { "type": "boolean" },
         "lets_encrypt": { "type": "boolean" },
         "webui_name": { "type": "string" },
+        "ollama_base_url": { "type": "string" },
         "enable_signup": { "type": "boolean" },
         "default_user_role": { "type": "string" },
         "enable_openai_api": { "type": "boolean" },
-        "ollama_keep_alive": { "type": "string" },
         "timezone": { "type": "string" },
+        "ldap_enabled": { "type": "boolean" },
+        "ldap_label": { "type": "string" },
+        "ldap_url": { "type": "string" },
+        "ldap_base_dn": { "type": "string" },
+        "ldap_bind_dn": { "type": "string" },
+        "ldap_bind_password_set": { "type": "boolean" },
+        "ldap_user_attribute": { "type": "string" },
+        "ldap_mail_attribute": { "type": "string" },
+        "ldap_search_filter": { "type": "string" },
+        "ldap_validate_cert": { "type": "boolean" },
         "url": { "type": "string" }
     }
 }

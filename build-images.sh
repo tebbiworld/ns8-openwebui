@@ -11,22 +11,20 @@ images=()
 repobase="${REPOBASE:-ghcr.io/tebbiworld}"
 reponame="openwebui"
 
-# Runtime images pinned by the module through the org.nethserver.images label so
-# the node pre-pulls them and exposes their references to the systemd units.
+# Runtime image pinned by the module through the org.nethserver.images label so
+# the node pre-pulls it and exposes its reference to the systemd unit.
 #
 # The env var name is the image basename, uppercased, with non-alphanumeric
 # characters turned into underscores, plus the _IMAGE suffix:
 #   ghcr.io/open-webui/open-webui:...  -> ${OPEN_WEBUI_IMAGE}
-#   docker.io/ollama/ollama:...        -> ${OLLAMA_IMAGE}
 #
-# These are moving upstream tags (open-webui :main, ollama :latest). Pin them to
-# a digest or fixed version for reproducible deployments.
+# This is a moving upstream tag (open-webui :main). Pin it to a digest or fixed
+# version for fully reproducible deployments. Ollama is NOT bundled: Open WebUI
+# connects to an external Ollama instance configured on the settings page.
 openwebui_image="ghcr.io/open-webui/open-webui:main"
-ollama_image="docker.io/ollama/ollama:latest"
 
 runtime_images=(
     "${openwebui_image}"
-    "${ollama_image}"
 )
 
 container=$(buildah from scratch)
@@ -47,7 +45,7 @@ buildah run \
 buildah add "${container}" imageroot /imageroot
 buildah add "${container}" ui/dist /ui
 # Reserve one TCP port for the Open WebUI frontend (container 8080), fronted by
-# Traefik. Ollama stays pod-internal, so no extra node ports are required.
+# Traefik. No extra node ports are required.
 buildah config --entrypoint=/ \
     --label="org.nethserver.authorizations=traefik@node:routeadm" \
     --label="org.nethserver.tcp-ports-demand=1" \

@@ -5,18 +5,25 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-# Store the Traefik transport settings and the Open WebUI runtime configuration.
+# Apply the Open WebUI module configuration.
+#
+# Two kinds of settings are written:
+#   * agent.set_env(...) -> state/environment: readable settings echoed back by
+#     get-configuration, plus values the systemd unit expands (WEB_PORT,
+#     OPEN_WEBUI_IMAGE, TRAEFIK_*).
+#   * state/openwebui.env -> passed to the container with --env-file. This is
+#     where the actual Open WebUI runtime settings (including the LDAP bind
+#     password and WEBUI_SECRET_KEY) reach the application.
 
 import os
 import sys
 import json
+import urllib.parse
 
 import agent
 
 
 def as_bool_str(value, default=False):
-    # Normalise a JSON boolean (or truthy string) to the "true"/"false" strings
-    # the Open WebUI container expects in its environment.
     if isinstance(value, str):
         value = value.strip().lower() in ("1", "true", "yes", "on")
     return "true" if bool(value) else "false"
@@ -24,24 +31,105 @@ def as_bool_str(value, default=False):
 
 data = json.load(sys.stdin)
 
+# --- Traefik transport -------------------------------------------------------
 host = data["host"]
-
-# Traefik transport.
+h2hs = data.get("http2https", True)
+lets_encrypt = data.get("lets_encrypt", False)
 agent.set_env("TRAEFIK_HOST", host)
-agent.set_env("TRAEFIK_HTTP2HTTPS", data.get("http2https", True))
+agent.set_env("TRAEFIK_HTTP2HTTPS", h2hs)
 
-# Public HTTPS address Open WebUI advertises (redirects, websocket origin).
-agent.set_env("WEBUI_URL", f"https://{host}")
+scheme = "https" if (lets_encrypt or h2hs) else "http"
+webui_url = f"{scheme}://{host}"
 
-# Branding and access policy.
-agent.set_env("WEBUI_NAME", data.get("webui_name") or "Open WebUI")
-agent.set_env("ENABLE_SIGNUP", as_bool_str(data.get("enable_signup", True), True))
-agent.set_env("ENABLE_OPENAI_API", as_bool_str(data.get("enable_openai_api", False), False))
-agent.set_env("DEFAULT_USER_ROLE", data.get("default_user_role") or "pending")
+# --- Application settings ----------------------------------------------------
+# External Ollama instance (this module does not bundle Ollama). One or more
+# base URLs, e.g. http://10.0.0.5:11434 (separate several with ';').
+ollama_base_url = (data.get("ollama_base_url") or "").strip().rstrip("/")
+webui_name = data.get("webui_name") or "Open WebUI"
+enable_signup = as_bool_str(data.get("enable_signup", True), True)
+enable_openai_api = as_bool_str(data.get("enable_openai_api", False), False)
+default_user_role = data.get("default_user_role") or "pending"
+timezone = data.get("timezone") or "UTC"
 
-# Ollama model residency.
-agent.set_env("OLLAMA_KEEP_ALIVE", data.get("ollama_keep_alive") or "5m")
+agent.set_env("OLLAMA_BASE_URL", ollama_base_url)
+agent.set_env("WEBUI_NAME", webui_name)
+agent.set_env("WEBUI_URL", webui_url)
+agent.set_env("ENABLE_SIGNUP", enable_signup)
+agent.set_env("ENABLE_OPENAI_API", enable_openai_api)
+agent.set_env("DEFAULT_USER_ROLE", default_user_role)
+agent.set_env("TZ", timezone)
 
-agent.set_env("TZ", data.get("timezone") or "UTC")
+# --- LDAP / Active Directory login ------------------------------------------
+# Maps onto Open WebUI's native LDAP support (ENABLE_LDAP / LDAP_* env vars).
+ldap_enabled = bool(data.get("ldap_enabled", False))
+ldap_label = (data.get("ldap_label") or "AD / LDAP").strip()
+ldap_url = (data.get("ldap_url") or "").strip().rstrip("/")
+ldap_base_dn = (data.get("ldap_base_dn") or "").strip()
+ldap_bind_dn = (data.get("ldap_bind_dn") or "").strip()
+ldap_user_attribute = (data.get("ldap_user_attribute") or "sAMAccountName").strip()
+ldap_mail_attribute = (data.get("ldap_mail_attribute") or "mail").strip()
+ldap_search_filter = (data.get("ldap_search_filter") or "").strip()
+ldap_validate_cert = as_bool_str(data.get("ldap_validate_cert", False), False)
+
+# The settings UI never echoes the bind password back: a blank field means
+# "keep the stored value", not "clear it".
+ldap_bind_password = data.get("ldap_bind_password")
+if not ldap_bind_password:
+    ldap_bind_password = os.environ.get("LDAP_BIND_PASSWORD", "")
+
+# Derive host / port / TLS from the LDAP URL (ldaps://host:636 or ldap://host:389).
+ldap_host = ""
+ldap_port = "636"
+ldap_use_tls = "true"
+if ldap_url:
+    parts = urllib.parse.urlsplit(ldap_url)
+    ldap_host = parts.hostname or ""
+    use_ssl = parts.scheme != "ldap"
+    ldap_port = str(parts.port or (636 if use_ssl else 389))
+    ldap_use_tls = "true" if use_ssl else "false"
+
+# Persist readable settings (for get-configuration; password kept for blank-submit).
+agent.set_env("LDAP_ENABLED", ldap_enabled)
+agent.set_env("LDAP_LABEL", ldap_label)
+agent.set_env("LDAP_URL", ldap_url)
+agent.set_env("LDAP_BASE_DN", ldap_base_dn)
+agent.set_env("LDAP_BIND_DN", ldap_bind_dn)
+agent.set_env("LDAP_BIND_PASSWORD", ldap_bind_password)
+agent.set_env("LDAP_USER_ATTRIBUTE", ldap_user_attribute)
+agent.set_env("LDAP_MAIL_ATTRIBUTE", ldap_mail_attribute)
+agent.set_env("LDAP_SEARCH_FILTER", ldap_search_filter)
+agent.set_env("LDAP_VALIDATE_CERT", ldap_validate_cert)
 
 agent.dump_env()
+
+# --- Container env file (--env-file) -----------------------------------------
+# Everything the Open WebUI container consumes at runtime. Written atomically.
+ldap_active = ldap_enabled and ldap_host and ldap_base_dn and ldap_bind_dn
+lines = [
+    "# Generated by configure-module. Do not edit by hand.",
+    f"WEBUI_SECRET_KEY={os.environ.get('WEBUI_SECRET_KEY', '')}",
+    f"WEBUI_URL={webui_url}",
+    f"WEBUI_NAME={webui_name}",
+    f"OLLAMA_BASE_URL={ollama_base_url}",
+    f"ENABLE_SIGNUP={enable_signup}",
+    f"ENABLE_OPENAI_API={enable_openai_api}",
+    f"DEFAULT_USER_ROLE={default_user_role}",
+    f"TZ={timezone}",
+    # --- LDAP ---
+    f"ENABLE_LDAP={'true' if ldap_active else 'false'}",
+    f"LDAP_SERVER_LABEL={ldap_label}",
+    f"LDAP_SERVER_HOST={ldap_host}",
+    f"LDAP_SERVER_PORT={ldap_port}",
+    f"LDAP_ATTRIBUTE_FOR_USERNAME={ldap_user_attribute}",
+    f"LDAP_ATTRIBUTE_FOR_MAIL={ldap_mail_attribute}",
+    f"LDAP_APP_DN={ldap_bind_dn}",
+    f"LDAP_APP_PASSWORD={ldap_bind_password}",
+    f"LDAP_SEARCH_BASE={ldap_base_dn}",
+    f"LDAP_SEARCH_FILTER={ldap_search_filter}",
+    f"LDAP_USE_TLS={ldap_use_tls}",
+    f"LDAP_VALIDATE_CERT={ldap_validate_cert}",
+    "LDAP_CIPHERS=ALL",
+]
+with open("openwebui.env.tmp", "w") as fp:
+    fp.write("\n".join(lines) + "\n")
+os.replace("openwebui.env.tmp", "openwebui.env")

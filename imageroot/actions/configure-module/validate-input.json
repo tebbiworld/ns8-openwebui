@@ -2,18 +2,28 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Configure openwebui",
     "$id": "http://nethserver.org/json-schema/task/input/openwebui/configure-module",
-    "description": "Configure the Open WebUI + Ollama module",
+    "description": "Configure the Open WebUI module",
     "examples": [
         {
             "host": "chat.example.org",
             "lets_encrypt": true,
             "http2https": true,
             "webui_name": "Example AI",
-            "enable_signup": true,
-            "default_user_role": "pending",
+            "ollama_base_url": "http://10.0.0.5:11434",
+            "enable_signup": false,
+            "default_user_role": "user",
             "enable_openai_api": false,
-            "ollama_keep_alive": "5m",
-            "timezone": "Europe/Berlin"
+            "timezone": "Europe/Berlin",
+            "ldap_enabled": true,
+            "ldap_label": "Active Directory",
+            "ldap_url": "ldaps://ad.example.org:636",
+            "ldap_base_dn": "DC=ad,DC=example,DC=org",
+            "ldap_bind_dn": "ldapservice@ad.example.org",
+            "ldap_bind_password": "secret",
+            "ldap_user_attribute": "sAMAccountName",
+            "ldap_mail_attribute": "mail",
+            "ldap_search_filter": "(memberOf=CN=ai-users,OU=Groups,DC=ad,DC=example,DC=org)",
+            "ldap_validate_cert": false
         }
     ],
     "type": "object",
@@ -41,36 +51,94 @@
             "title": "Interface name",
             "description": "Display name shown in the Open WebUI interface (WEBUI_NAME)."
         },
+        "ollama_base_url": {
+            "type": "string",
+            "title": "Ollama base URL",
+            "description": "URL of your external Ollama instance, e.g. http://10.0.0.5:11434 (OLLAMA_BASE_URL). Separate several with ';'. Leave empty to add connections later inside the UI."
+        },
         "enable_signup": {
             "type": "boolean",
             "title": "Allow self-registration",
-            "description": "Let visitors create their own account (ENABLE_SIGNUP). The very first account always becomes the administrator. Turn off once your users exist.",
+            "description": "Let visitors create their own local account (ENABLE_SIGNUP). The very first account always becomes the administrator. Not needed when users log in via AD/LDAP.",
             "default": true
         },
         "default_user_role": {
             "type": "string",
             "title": "Default role for new accounts",
-            "description": "Role assigned to newly registered users (DEFAULT_USER_ROLE). 'pending' requires admin approval before login.",
+            "description": "Role assigned to newly registered or first-login LDAP users (DEFAULT_USER_ROLE). 'pending' requires admin approval before login.",
             "enum": ["pending", "user", "admin"],
             "default": "pending"
         },
         "enable_openai_api": {
             "type": "boolean",
             "title": "Enable OpenAI-compatible API",
-            "description": "Also allow external OpenAI-compatible endpoints in addition to the bundled Ollama (ENABLE_OPENAI_API). Keep off for a self-contained, local-only setup.",
+            "description": "Also allow external OpenAI-compatible endpoints in addition to Ollama (ENABLE_OPENAI_API).",
             "default": false
-        },
-        "ollama_keep_alive": {
-            "type": "string",
-            "title": "Model keep-alive",
-            "description": "How long Ollama keeps a model loaded in memory after the last request (OLLAMA_KEEP_ALIVE), e.g. 5m, 1h, or -1 to keep loaded.",
-            "default": "5m"
         },
         "timezone": {
             "type": "string",
             "title": "Timezone",
             "description": "TZ database name for scheduling and log timestamps, e.g. Europe/Berlin.",
             "default": "UTC"
+        },
+        "ldap_enabled": {
+            "type": "boolean",
+            "title": "Enable AD/LDAP login",
+            "description": "Allow login with Active Directory / LDAP accounts (ENABLE_LDAP).",
+            "default": false
+        },
+        "ldap_label": {
+            "type": "string",
+            "title": "Login button label",
+            "description": "Text shown on the LDAP login option (LDAP_SERVER_LABEL), e.g. 'Active Directory'."
+        },
+        "ldap_url": {
+            "type": "string",
+            "title": "LDAP URL",
+            "description": "URL of the directory server, e.g. ldaps://ad.example.org:636 or ldap://ad.example.org:389."
+        },
+        "ldap_base_dn": {
+            "type": "string",
+            "title": "Search base DN",
+            "description": "Base DN under which users are searched, e.g. DC=ad,DC=example,DC=org (LDAP_SEARCH_BASE)."
+        },
+        "ldap_bind_dn": {
+            "type": "string",
+            "title": "Bind DN",
+            "description": "Service account used to search the directory, e.g. ldapservice@ad.example.org (LDAP_APP_DN)."
+        },
+        "ldap_bind_password": {
+            "type": "string",
+            "title": "Bind password",
+            "description": "Password of the bind/service account (LDAP_APP_PASSWORD). Leave empty to keep the stored value.",
+            "format": "password"
+        },
+        "ldap_user_attribute": {
+            "type": "string",
+            "title": "Username attribute",
+            "description": "Attribute matched against the entered user name (LDAP_ATTRIBUTE_FOR_USERNAME). Defaults to sAMAccountName (Active Directory); use uid for OpenLDAP."
+        },
+        "ldap_mail_attribute": {
+            "type": "string",
+            "title": "Mail attribute",
+            "description": "Attribute holding the user's e-mail (LDAP_ATTRIBUTE_FOR_MAIL). Defaults to mail."
+        },
+        "ldap_search_filter": {
+            "type": "string",
+            "title": "Search filter",
+            "description": "Optional additional LDAP filter to restrict who may log in (LDAP_SEARCH_FILTER), e.g. (memberOf=CN=ai-users,OU=Groups,DC=ad,DC=example,DC=org). Empty means any directory user."
+        },
+        "ldap_validate_cert": {
+            "type": "boolean",
+            "title": "Validate LDAPS certificate",
+            "description": "Verify the directory server's TLS certificate (LDAP_VALIDATE_CERT). Turn off for internal CAs / self-signed certificates.",
+            "default": false
         }
-    }
+    },
+    "allOf": [
+        {
+            "if": { "properties": { "ldap_enabled": { "const": true } } },
+            "then": { "required": ["ldap_url", "ldap_base_dn", "ldap_bind_dn"] }
+        }
+    ]
 }

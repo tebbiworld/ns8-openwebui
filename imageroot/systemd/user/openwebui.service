@@ -3,38 +3,48 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-# Rootless pod for the Open WebUI + Ollama module.
+# Main unit for the Open WebUI module. It runs a single rootless container: the
+# Open WebUI chat interface. Ollama is NOT bundled -- Open WebUI connects to an
+# external Ollama instance (OLLAMA_BASE_URL) configured on the settings page.
 #
-# Port model (no dedicated IP required): the Open WebUI frontend (container
-# 8080) is published on the node loopback and fronted by Traefik on the
-# configured host name. Ollama (container 11434) stays inside the pod network
-# and is reached by Open WebUI over the shared pod localhost, so it is never
-# exposed on the node. Everything Open WebUI serves (HTTP + WebSocket) goes
-# through the single HTTPS host, so no extra node ports are needed.
+# Networking: the container publishes only 127.0.0.1:${WEB_PORT} -> 8080. Traefik
+# terminates TLS on the same node and reverse-proxies to that loopback port
+# (HTTP + WebSocket), so nothing is exposed on any external interface.
+#
+# Runtime settings (including the LDAP/AD bind password and WEBUI_SECRET_KEY)
+# live in state/openwebui.env, passed with --env-file. The state volume
+# openwebui-data holds the SQLite database, uploads, RAG store and config.
 
 [Unit]
-Description=Open WebUI pod
-Requires=openwebui-ollama.service openwebui-app.service
-Before=openwebui-ollama.service openwebui-app.service
+Description=Open WebUI server
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Environment=PODMAN_SYSTEMD_UNIT=%n
 EnvironmentFile=%S/state/environment
+WorkingDirectory=%S/state
 Restart=always
+TimeoutStartSec=300
 TimeoutStopSec=70
-ExecStartPre=/bin/rm -f %t/openwebui.pid %t/openwebui.pod-id
-ExecStartPre=/usr/bin/podman pod create \
-    --infra-conmon-pidfile %t/openwebui.pid \
-    --pod-id-file %t/openwebui.pod-id \
-    --name openwebui \
-    --hostname ${OPENWEBUI_CONTAINER_HOSTNAME} \
+# openwebui.env (runtime settings) is written by configure-module; touch it so
+# the --env-file below never fails on a fresh, not-yet-configured instance.
+ExecStartPre=/bin/touch %S/state/openwebui.env
+ExecStartPre=/bin/rm -f %t/openwebui.pid %t/openwebui.ctr-id
+ExecStart=/usr/bin/podman run \
+    --conmon-pidfile %t/openwebui.pid \
+    --cidfile %t/openwebui.ctr-id \
+    --cgroups=no-conmon \
+    --replace -d --name openwebui \
     --publish 127.0.0.1:${WEB_PORT}:8080 \
-    --replace
-ExecStart=/usr/bin/podman pod start --pod-id-file %t/openwebui.pod-id
-ExecStop=/usr/bin/podman pod stop --ignore --pod-id-file %t/openwebui.pod-id -t 30
-ExecStopPost=/usr/bin/podman pod rm --ignore -f --pod-id-file %t/openwebui.pod-id
+    --volume openwebui-data:/app/backend/data:z \
+    --env-file %S/state/openwebui.env \
+    ${OPEN_WEBUI_IMAGE}
+ExecStop=/usr/bin/podman stop --ignore --cidfile %t/openwebui.ctr-id -t 30
+ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/openwebui.ctr-id
 PIDFile=%t/openwebui.pid
 Type=forking
+SyslogIdentifier=%u
 
 [Install]
 WantedBy=default.target
