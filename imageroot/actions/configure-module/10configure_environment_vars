@@ -113,6 +113,10 @@ lines = [
     # Disabling it makes the env-file authoritative on every start, so the module
     # fully controls the configuration.
     "ENABLE_PERSISTENT_CONFIG=false",
+    # The container runs with --network=host (see openwebui.service); bind the
+    # web server to the loopback port allocated by the node only.
+    "HOST=127.0.0.1",
+    f"PORT={os.environ['WEB_PORT']}",
     f"WEBUI_SECRET_KEY={os.environ.get('WEBUI_SECRET_KEY', '')}",
     f"WEBUI_URL={webui_url}",
     f"WEBUI_NAME={webui_name}",

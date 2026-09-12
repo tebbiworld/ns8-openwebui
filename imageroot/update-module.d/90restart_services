@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# The node agent's update-module action extracts the new image and runs these
+# hooks, but it does not restart the module's units (core action
+# update-module/50run_scriptdir). Without a restart the running container keeps
+# the command line of the previous version, so the --network=host change of
+# 1.0.1 would only take effect at the next reboot.
+#
+# Since 1.0.1 the container runs with --network=host and Open WebUI must bind
+# 127.0.0.1:${WEB_PORT} itself: make sure HOST/PORT are present in the env file
+# written by an older configure-module (idempotent; configure-module rewrites
+# the whole file anyway on the next save).
+#
+
+set -e
+
+# Redirect any output to the journal (stderr)
+exec 1>&2
+
+envfile="openwebui.env"
+if [ -f "${envfile}" ] && [ -n "${WEB_PORT}" ]; then
+    sed -i -e '/^HOST=/d' -e '/^PORT=/d' "${envfile}"
+    printf 'HOST=127.0.0.1\nPORT=%s\n' "${WEB_PORT}" >> "${envfile}"
+fi
+
+systemctl --user daemon-reload
+systemctl --user restart openwebui.service

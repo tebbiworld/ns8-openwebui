@@ -86,3 +86,8 @@ One rootless named volume survives container recreation:
   `build-images.sh` for fully reproducible deployments.
 * The node must be able to reach the Ollama host on its API port (default
   `11434`).
+* The container runs in the host network namespace and binds only
+  `127.0.0.1:<allocated port>`. This is deliberate: with the rootless default
+  network a container cannot reach services on its **own node's IP** (the
+  address is mirrored into the container), which broke LDAP login and Ollama
+  access whenever the domain controller or Ollama runs on the same node.

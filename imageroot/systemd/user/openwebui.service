@@ -7,9 +7,17 @@
 # Open WebUI chat interface. Ollama is NOT bundled -- Open WebUI connects to an
 # external Ollama instance (OLLAMA_BASE_URL) configured on the settings page.
 #
-# Networking: the container publishes only 127.0.0.1:${WEB_PORT} -> 8080. Traefik
+# Networking: the container shares the host network namespace and Open WebUI
+# binds only 127.0.0.1:${WEB_PORT} (HOST/PORT in the env file). Traefik
 # terminates TLS on the same node and reverse-proxies to that loopback port
 # (HTTP + WebSocket), so nothing is exposed on any external interface.
+#
+# Why host networking instead of --publish: with the rootless default network
+# (pasta) a container cannot connect to its own node's IP address - the address
+# is mirrored inside the container and the connection is refused. That breaks
+# the very common case where the AD/LDAP domain controller (the NS8 Samba
+# account provider) or the Ollama host runs on the same node as this module
+# (1.0.0 regression seen as "LDAP authentication failed" / Errno 111).
 #
 # Runtime settings (including the LDAP/AD bind password and WEBUI_SECRET_KEY)
 # live in state/openwebui.env, passed with --env-file. The state volume
@@ -36,7 +44,7 @@ ExecStart=/usr/bin/podman run \
     --cidfile %t/openwebui.ctr-id \
     --cgroups=no-conmon \
     --replace -d --name openwebui \
-    --publish 127.0.0.1:${WEB_PORT}:8080 \
+    --network=host \
     --volume openwebui-data:/app/backend/data:z \
     --env-file %S/state/openwebui.env \
     ${OPEN_WEBUI_IMAGE}
