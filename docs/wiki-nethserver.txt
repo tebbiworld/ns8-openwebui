@@ -1,0 +1,106 @@
+======Open WebUI======
+[[https://github.com/open-webui/open-webui|Open WebUI]] is a self-hosted web chat interface for large language models. This module runs Open WebUI on NethServer 8 and connects it to an **external** [[https://github.com/ollama/ollama|Ollama]] instance. Login with Active Directory / LDAP accounts is supported.
+
+====Announcement and talks====
+The Open WebUI app announcement TBA
+
+Open WebUI is a community application from the [[ns8:tebbiworld_repository|tebbiworld]] repository. Documentation and source can be found on [[https://github.com/tebbiworld/ns8-openwebui|Github]]
+
+=====What the module does – and what it does not=====
+
+  * **Included:** the Open WebUI front end (chat interface, user management, conversation history, document upload).
+  * **Not included:** Ollama and the language models. They run on a separate host that you size and operate yourself (GPU, RAM, model storage), for example a virtual machine or a container on your hypervisor.
+
+This separation keeps the NS8 node free of the inference load. The node only needs network access to the Ollama %%API%%.
+
+=====Architecture=====
+
+  * One rootless container, image ''ghcr.io/open-webui/open-webui:main''.
+  * The container listens on the node loopback only: %%127.0.0.1:<allocated port>%% is forwarded to container port 8080. Traefik publishes it on the configured host name and handles TLS and WebSocket.
+  * Open WebUI connects to Ollama through the configured Ollama base %%URL%%.
+  * One named volume, ''openwebui-data'', mounted at ''/app/backend/data''. It holds the SQLite database (users, chats), uploaded files, the RAG vector store and avatars.
+
+=====Prerequisites: the Ollama host=====
+
+  * Ollama must be reachable from the NS8 node on its %%API%% port, by default 11434.
+  * Ollama binds to 127.0.0.1 only. To accept connections from the network, set ''OLLAMA_HOST'' on the Ollama host, for example %%OLLAMA_HOST=0.0.0.0:11434%% (see the [[https://github.com/ollama/ollama/blob/main/docs/faq.md|Ollama FAQ]]).
+  * Restrict access to that port, on the Ollama host or in your firewall, to the machines that need it.
+
+=====Installation=====
+On a NethServer 8 node:
+
+<code bash>
+add-module ghcr.io/tebbiworld/openwebui:latest 1
+</code>
+
+=====Settings=====
+All settings are made on the settings page of the module in the NS8 cluster-admin.
+
+^ Setting ^ Description ^
+| Host name | %%FQDN%% of the chat interface, for example ''ai.example.org''. |
+| Let's Encrypt certificate | Requests a certificate for the host name. Requires that ports 80 and 443 of this %%FQDN%% reach this node. |
+| HTTP to HTTPS redirection | Redirects HTTP to HTTPS. |
+| Ollama base %%URL%% | Address of the external Ollama, for example %%http://10.0.0.5:11434%%. Separate several addresses with a semicolon. |
+| Enable OpenAI-compatible %%API%% | Additionally allows OpenAI-compatible endpoints. |
+| Interface name | Display name shown in the interface. |
+| Allow self-registration | Local signup of new accounts. |
+| Default role for new accounts | ''pending'' (administrator approval required), ''user'' or ''admin''. Also applies to AD/LDAP users on their first login. Recommended: ''pending''. |
+| Timezone | TZ name, for example ''Europe/Zurich''. |
+
+====Active Directory and LDAP====
+
+^ Setting ^ Description ^
+| LDAP address | For example %%ldaps://ad.example.org:636%%. Host, port and TLS are derived from it. |
+| Login button label | Text of the LDAP login option. |
+| Search base DN | For example ''DC=ad,DC=example,DC=org''. |
+| Bind DN and bind password | Read-only service account for the user search. A blank password field on save keeps the stored password. |
+| Username attribute | ''sAMAccountName'' for Active Directory, ''uid'' for OpenLDAP. |
+| Mail attribute | Open WebUI requires an e-mail address for every user. Default ''mail''. If ''mail'' is empty in your directory, use ''userPrincipalName''. |
+| Search filter | Optional restriction, written in parentheses, for example ''(memberOf=CN=ai-users,OU=Groups,DC=ad,DC=example,DC=org)''. It is combined with the username condition by AND. |
+| Validate LDAPS certificate | Off by default. When off, the connection is encrypted, but the identity of the directory server is not verified. |
+
+====The module controls the configuration====
+The module starts Open WebUI with ''ENABLE_PERSISTENT_CONFIG=false''. The values from the module settings therefore apply at every start.
+
+Consequence: **settings changed in the Open WebUI admin panel are kept only until the next container restart** and then fall back to the values from the module settings. This also applies to self-registration. Open WebUI switches self-registration off after the first account has been created, but after a restart the value from the module settings applies again. Switch //Allow self-registration// off in the module settings.
+
+=====First steps=====
+
+  - Set the host name and the Ollama base address in the module settings and save.
+  - Open the published address. **The first account that logs in becomes administrator**, whether it is a local signup or the first AD/LDAP login. Create this account immediately after the installation, before anyone else can reach the address.
+  - Switch //Allow self-registration// off in the module settings.
+  - Select a model in the chat. Models are downloaded and executed on the Ollama host, not on the NS8 node.
+
+=====Security notes=====
+
+  * The LDAP bind password and the session key ''WEBUI_SECRET_KEY'' are stored in the module configuration (''state/environment'') and in the container environment file ''state/openwebui.env''. Use a dedicated read-only bind account.
+  * Keep //Default role for new accounts// on ''pending'' unless everyone who can reach the address may use the models.
+  * Protect the Ollama %%API%% port on the network, see //Prerequisites//.
+
+=====Backup=====
+The module does not list its volume for the NS8 backup; there is no ''state-include.conf''. An NS8 backup of this module contains the module environment only, **not** the users, chats and uploaded files in ''openwebui-data''. Back up that volume separately until this is added to the module.
+
+=====Updates=====
+The module references the upstream tag ''open-webui:main'', which moves with upstream releases. Which Open WebUI version runs depends on when the image was pulled. For reproducible deployments, pin the image to a fixed version in ''build-images.sh''.
+
+=====Further reading=====
+c't 16/2026 covers the same scenario in its article //Einer fürs Team// (p. 114 ff., section //KI-Modelle selbst betreiben//): setting up an Open WebUI server for a small working group. The article argues that a self-operated server keeps the data on the machine and therefore also suits sensitive data, and that relying entirely on an external provider's infrastructure carries a risk — written after the export restriction on a commercial language model in June 2026. Alongside the setup it covers the administrative side: updates, security and monitoring. The NS8 module takes over the deployment part of that; the operational questions remain.
+
+  * [[https://www.heise.de/select/ct/2026/16/2616616022801404145|c't 16/2026, p. 114: Einer fürs Team]] (paid)
+
+=====Links=====
+
+  * [[https://docs.openwebui.com/|Open WebUI documentation]]
+  * [[https://github.com/ollama/ollama|Ollama]]
+  * [[https://github.com/tebbiworld/ns8-openwebui/issues|Bug reports]]
+
+=====Disclaimer=====
+Private hobby project, shared as-is. No warranty, no guaranteed support, use at your own risk. Unofficial community package, not affiliated with or endorsed by the Open WebUI or Ollama projects. The module's own code is licensed %%GPL%%-3.0-or-later.
+
+----
+{{tag>application}}
+{{tag>category:AI}}
+{{tag>status:Alpha}}
+{{tag>certlevel:1}}
+{{tag>repo:tebbiworld}}
+{{tag>description:"A self-hosted AI chat interface for an external Ollama with AD login"}}
