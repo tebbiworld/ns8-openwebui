@@ -4,9 +4,14 @@
     "en": "Open WebUI — self-hosted AI chat interface for an external Ollama backend, with AD/LDAP login",
     "de": "Open WebUI — selbst gehostete KI-Chat-Oberfläche für ein externes Ollama-Backend, mit AD/LDAP-Anmeldung"
   },
-  "categories": ["development", "productivity"],
+  "categories": [
+    "development"
+  ],
   "authors": [
-    { "name": "tebbi", "email": "info@ebbinghaus.world" }
+    {
+      "name": "tebbi",
+      "email": "info@ebbinghaus.world"
+    }
   ],
   "docs": {
     "documentation_url": "https://docs.openwebui.com/",
