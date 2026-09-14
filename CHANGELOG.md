@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 — 2026-09-14
+
+### Changed
+
+- Runtime image pinned to `open-webui:v0.11.3` instead of the moving `main` tag: every installation now runs the same, tested Open WebUI version; new upstream versions arrive as module releases (automatic every ~6 weeks). Existing instances on a different `main` build are moved to 0.11.3 by this update.
+
 ## 1.0.1 — 2026-09-12
 
 ### Fixed

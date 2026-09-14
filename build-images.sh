@@ -21,7 +21,7 @@ reponame="openwebui"
 # This is a moving upstream tag (open-webui :main). Pin it to a digest or fixed
 # version for fully reproducible deployments. Ollama is NOT bundled: Open WebUI
 # connects to an external Ollama instance configured on the settings page.
-openwebui_image="ghcr.io/open-webui/open-webui:main"
+openwebui_image="ghcr.io/open-webui/open-webui:v0.11.3"
 
 runtime_images=(
     "${openwebui_image}"
