@@ -46,11 +46,13 @@ buildah add "${container}" imageroot /imageroot
 buildah add "${container}" ui/dist /ui
 # Reserve one TCP port for the Open WebUI frontend (container 8080), fronted by
 # Traefik. No extra node ports are required.
+# The bulk-data volumes can be placed on an additional disk at install time.
 buildah config --entrypoint=/ \
     --label="org.nethserver.authorizations=traefik@node:routeadm" \
     --label="org.nethserver.tcp-ports-demand=1" \
     --label="org.nethserver.rootfull=0" \
     --label="org.nethserver.images=${runtime_images[*]}" \
+    --label="org.nethserver.volumes=openwebui-data" \
     "${container}"
 buildah commit "${container}" "${repobase}/${reponame}"
 
