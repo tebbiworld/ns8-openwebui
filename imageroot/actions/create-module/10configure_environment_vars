@@ -24,6 +24,4 @@ agent.set_env("WEB_PORT", web_port)
 
 # JWT signing key for Open WebUI sessions. Generated once and kept stable so
 # existing sessions survive restarts and container recreation.
-agent.set_env("WEBUI_SECRET_KEY", secrets.token_hex(32))
 
-agent.dump_env()

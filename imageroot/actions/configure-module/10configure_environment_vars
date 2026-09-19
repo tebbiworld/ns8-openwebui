@@ -21,6 +21,7 @@ import json
 import urllib.parse
 
 import agent
+import modsecrets
 
 
 def as_bool_str(value, default=False):
@@ -37,6 +38,9 @@ h2hs = data.get("http2https", True)
 lets_encrypt = data.get("lets_encrypt", False)
 agent.set_env("TRAEFIK_HOST", host)
 agent.set_env("TRAEFIK_HTTP2HTTPS", h2hs)
+if "lets_encrypt" in data:
+    # kept so restore-module can re-create the route with the same setting
+    agent.set_env("TRAEFIK_LETS_ENCRYPT", data["lets_encrypt"])
 
 scheme = "https" if (lets_encrypt or h2hs) else "http"
 webui_url = f"{scheme}://{host}"
@@ -75,7 +79,7 @@ ldap_validate_cert = as_bool_str(data.get("ldap_validate_cert", False), False)
 # "keep the stored value", not "clear it".
 ldap_bind_password = data.get("ldap_bind_password")
 if not ldap_bind_password:
-    ldap_bind_password = os.environ.get("LDAP_BIND_PASSWORD", "")
+    ldap_bind_password = modsecrets.get("LDAP_BIND_PASSWORD")
 
 # Derive host / port / TLS from the LDAP URL (ldaps://host:636 or ldap://host:389).
 ldap_host = ""
@@ -94,13 +98,13 @@ agent.set_env("LDAP_LABEL", ldap_label)
 agent.set_env("LDAP_URL", ldap_url)
 agent.set_env("LDAP_BASE_DN", ldap_base_dn)
 agent.set_env("LDAP_BIND_DN", ldap_bind_dn)
-agent.set_env("LDAP_BIND_PASSWORD", ldap_bind_password)
+# a secret: state/passwords.env, not the module environment
+modsecrets.write({"LDAP_BIND_PASSWORD": ldap_bind_password})
 agent.set_env("LDAP_USER_ATTRIBUTE", ldap_user_attribute)
 agent.set_env("LDAP_MAIL_ATTRIBUTE", ldap_mail_attribute)
 agent.set_env("LDAP_SEARCH_FILTER", ldap_search_filter)
 agent.set_env("LDAP_VALIDATE_CERT", ldap_validate_cert)
 
-agent.dump_env()
 
 # --- Container env file (--env-file) -----------------------------------------
 # Everything the Open WebUI container consumes at runtime. Written atomically.
@@ -117,7 +121,7 @@ lines = [
     # web server to the loopback port allocated by the node only.
     "HOST=127.0.0.1",
     f"PORT={os.environ['WEB_PORT']}",
-    f"WEBUI_SECRET_KEY={os.environ.get('WEBUI_SECRET_KEY', '')}",
+    f"WEBUI_SECRET_KEY={modsecrets.get('WEBUI_SECRET_KEY')}",
     f"WEBUI_URL={webui_url}",
     f"WEBUI_NAME={webui_name}",
     f"OLLAMA_BASE_URL={ollama_base_url}",
@@ -140,6 +144,8 @@ lines = [
     f"LDAP_VALIDATE_CERT={ldap_validate_cert}",
     "LDAP_CIPHERS=ALL",
 ]
+# openwebui.env carries WEBUI_SECRET_KEY and the bind password: keep it private
+os.umask(0o077)
 with open("openwebui.env.tmp", "w") as fp:
     fp.write("\n".join(lines) + "\n")
 os.replace("openwebui.env.tmp", "openwebui.env")
