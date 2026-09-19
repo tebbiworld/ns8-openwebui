@@ -16,7 +16,8 @@
   "docs": {
     "documentation_url": "https://docs.openwebui.com/",
     "bug_url": "https://github.com/tebbiworld/ns8-openwebui/issues",
-    "code_url": "https://github.com/tebbiworld/ns8-openwebui"
+    "code_url": "https://github.com/tebbiworld/ns8-openwebui",
+    "relnotes_url": "https://github.com/tebbiworld/ns8-openwebui/releases"
   },
   "source": "ghcr.io/tebbiworld/openwebui"
 }
