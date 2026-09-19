@@ -30,4 +30,4 @@ if [ -f "${envfile}" ] && [ -n "${WEB_PORT}" ]; then
 fi
 
 systemctl --user daemon-reload
-systemctl --user restart openwebui.service
+systemctl --user try-restart openwebui.service

@@ -13,6 +13,7 @@ import sys
 import json
 
 import agent
+import modsecrets
 
 host = os.getenv("TRAEFIK_HOST", "")
 
@@ -31,7 +32,7 @@ config = {
     "ldap_url": os.getenv("LDAP_URL", ""),
     "ldap_base_dn": os.getenv("LDAP_BASE_DN", ""),
     "ldap_bind_dn": os.getenv("LDAP_BIND_DN", ""),
-    "ldap_bind_password_set": bool(os.getenv("LDAP_BIND_PASSWORD")),
+    "ldap_bind_password_set": bool(modsecrets.get("LDAP_BIND_PASSWORD")),
     "ldap_user_attribute": os.getenv("LDAP_USER_ATTRIBUTE", "sAMAccountName"),
     "ldap_mail_attribute": os.getenv("LDAP_MAIL_ATTRIBUTE", "mail"),
     "ldap_search_filter": os.getenv("LDAP_SEARCH_FILTER", ""),
