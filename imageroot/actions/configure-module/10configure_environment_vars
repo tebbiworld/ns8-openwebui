@@ -118,6 +118,11 @@ lines = [
     # this module (Ollama URL, sign-up, user role, LDAP) are reset to the values
     # below before every start by bin/enforce-module-settings.
     "ENABLE_PERSISTENT_CONFIG=true",
+    # Seed only (the admin panel can change it): local models of 14B parameters
+    # and below cannot drive Open WebUI's native tool calling reliably (invented
+    # tool calls, garbage tokens); the legacy mode injects the knowledge-base
+    # results into the prompt instead.
+    'DEFAULT_MODEL_PARAMS={"function_calling":"legacy"}',
     # The container runs with --network=host (see openwebui.service); bind the
     # web server to the loopback port allocated by the node only.
     "HOST=127.0.0.1",

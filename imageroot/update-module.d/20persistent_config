@@ -28,3 +28,4 @@ envfile="openwebui.env"
 
 sed -i -e 's/^ENABLE_PERSISTENT_CONFIG=.*/ENABLE_PERSISTENT_CONFIG=true/' "${envfile}"
 grep -q '^ENABLE_PERSISTENT_CONFIG=' "${envfile}" || echo 'ENABLE_PERSISTENT_CONFIG=true' >> "${envfile}"
+grep -q '^DEFAULT_MODEL_PARAMS=' "${envfile}" || echo 'DEFAULT_MODEL_PARAMS={"function_calling":"legacy"}' >> "${envfile}"
