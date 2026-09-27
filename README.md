@@ -62,6 +62,32 @@ details; users then log in with their AD/LDAP accounts.
 | Search filter | `LDAP_SEARCH_FILTER` | Optional; restrict login, e.g. `(memberOf=CN=ai-users,...)`. |
 | Validate LDAPS certificate | `LDAP_VALIDATE_CERT` | Off by default for internal CAs / self-signed certs. |
 
+### Settings made in the Open WebUI admin panel
+
+Since 1.2.0 everything changed in the Open WebUI **admin panel** is kept across
+restarts, updates and backups (the embedding model under *Documents*, chunk
+size, *Top K*, API keys, default model parameters, ...). The settings listed in
+the two tables above are the exception: this page owns them. They are reset to
+the values saved here before every start, so change them here, not in the admin
+panel (additional Ollama connections go into the Ollama base URL field,
+separated by `;`). The Ollama URL used for embeddings follows the Ollama base
+URL as well.
+
+Recommendations for a local Ollama:
+
+* **Embedding model** (*Admin panel → Settings → Documents*): the built-in
+  `all-MiniLM-L6-v2` only understands English. For German or mixed documents
+  pull a multilingual model on the Ollama host (`ollama pull bge-m3`) and select
+  engine *Ollama*, model `bge-m3:latest`. Changing the model requires
+  re-indexing the knowledge bases (button on the same page).
+* **Tool calling**: new instances start with the default model parameter
+  `function_calling: legacy`. Open WebUI 0.11 otherwise lets the model call its
+  built-in tools itself (knowledge search, questions to the user, ...), which
+  local models of 14B parameters and below do not handle reliably: invented
+  tool calls, garbage tokens, no answer. In legacy mode the knowledge-base
+  results are put into the prompt directly. It can be changed per model or
+  globally in the admin panel.
+
 ## First steps
 
 1. Set the **Ollama base URL** to your external instance and save.
@@ -76,14 +102,14 @@ details; users then log in with their AD/LDAP accounts.
 One rootless named volume survives container recreation:
 
 * `openwebui-data` — mounted at `/app/backend/data`: SQLite database, uploaded
-  files, RAG vector store, avatars and generated config.
+  files, RAG vector store, avatars and the admin panel settings.
 
 ## Notes
 
 * Runtime settings, including the LDAP bind password and `WEBUI_SECRET_KEY`, are
   written to `state/openwebui.env` and passed to the container with `--env-file`.
-* The image tracks the upstream moving tag `open-webui:main`. Pin it in
-  `build-images.sh` for fully reproducible deployments.
+* The Open WebUI image is pinned to a fixed upstream version in
+  `build-images.sh`; new versions arrive as module releases.
 * The node must be able to reach the Ollama host on its API port (default
   `11434`).
 * The container runs in the host network namespace and binds only

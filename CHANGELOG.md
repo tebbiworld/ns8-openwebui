@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.0 — unreleased
+
+### Fixed
+
+- **Settings made in the Open WebUI admin panel are no longer lost on restart.** Up to 1.1.x the module ran Open WebUI with `ENABLE_PERSISTENT_CONFIG=false`, so every change in the admin panel only lasted until the next restart, update or node reboot. A switched embedding model (e.g. `bge-m3` via Ollama) silently fell back to the built-in `all-MiniLM-L6-v2`: knowledge bases indexed with the other model no longer matched (1024 vs 384 dimensions) and every search answered "no sources found".
+  Open WebUI now keeps its settings in its database. The settings owned by this module (Ollama URL, self-registration, default role, OpenAI switch, all LDAP settings) are reset to the values from the NS8 settings page before every start, so that page stays authoritative for them.
+
+### Changed
+
+- New instances start with the default model parameter `function_calling: legacy`. Open WebUI 0.11 defaults to native tool calling, which local models of 14B parameters and below do not handle reliably (invented tool calls, garbage tokens, no answer); in legacy mode the knowledge-base results are placed into the prompt. It is only a default and can be changed in the admin panel.
+
+### Update notes
+
+- The update switches the existing `openwebui.env` in place instead of rewriting it: lines appended to it by hand (for example `RAG_EMBEDDING_MODEL=`, `CHUNK_SIZE=`, `ENABLE_API_KEYS=`) are taken over into the Open WebUI database at the first start and are kept from then on, even after the next save of the NS8 settings page.
+- Anything that was only set in the admin panel before the update was already lost at the last restart and has to be set once more; from now on it stays.
+- API keys (*Admin panel → Settings → General*) are now kept as well; the module does not manage them.
+
 ## 1.1.0 — 2026-09-19
 
 Alignment with the NethServer module conventions (NethServer/agents skills).
