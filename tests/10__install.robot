@@ -24,8 +24,12 @@ Open WebUI answers behind Traefik
 
 Update to the image under test
     Skip If    '${SCENARIO}' != 'update'    scenario is ${SCENARIO}
+    # A setting appended to openwebui.env by hand must survive the update
+    Run on node    runagent -m ${module_id} bash -c 'echo CHUNK_SIZE=1234 >> "$AGENT_STATE_DIR/openwebui.env"'
     Run on node    api-cli run update-module --data '{"force":true,"module_url":"${IMAGE_URL}","instances":["${module_id}"]}'
     Wait Until Keyword Succeeds    90 times    10 seconds    Application config is served
+    ${chunk_size} =    Config value    rag.chunk_size
+    Should Be Equal    ${chunk_size}    1234
 
 Configuration reads back
     ${cfg} =    Run task    module/${module_id}/get-configuration    {}
@@ -43,7 +47,22 @@ Secrets are stored in passwords.env only
     ${mode} =    Run on node    runagent -m ${module_id} bash -c 'stat -c \%a "$AGENT_STATE_DIR/openwebui.env"'
     Should Be Equal As Strings    ${mode.strip()}    600
 
+Admin panel settings survive a restart, module settings win
+    # One setting owned by the module, one owned by the Open WebUI admin panel
+    Run on node    runagent -m ${module_id} podman exec openwebui python3 -c "import json, sqlite3; db = sqlite3.connect('/app/backend/data/webui.db'); db.execute('UPDATE config SET value = ? WHERE key = ?', (json.dumps('Changed'), 'ldap.server.label')); db.execute('UPDATE config SET value = ? WHERE key = ?', ('9', 'rag.top_k')); db.commit()"
+    Run on node    runagent -m ${module_id} systemctl --user restart openwebui.service
+    Wait Until Keyword Succeeds    90 times    10 seconds    Application config is served
+    ${label} =    Config value    ldap.server.label
+    Should Be Equal    ${label}    CI LDAP
+    ${top_k} =    Config value    rag.top_k
+    Should Be Equal    ${top_k}    9
+
 *** Keywords ***
 Application config is served
     ${out} =    Run on node    curl -fsSk -H 'Host: openwebui.ci.test' https://127.0.0.1/api/config
     Should Contain    ${out}    CI WebUI
+
+Config value
+    [Arguments]    ${key}
+    ${out} =    Run on node    runagent -m ${module_id} podman exec openwebui python3 -c "import json, sqlite3; v = sqlite3.connect('/app/backend/data/webui.db').execute('SELECT value FROM config WHERE key = ?', ('${key}',)).fetchone()[0]; print(json.loads(v) if isinstance(v, str) else v)"
+    RETURN    ${out.strip()}

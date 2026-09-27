@@ -21,7 +21,8 @@
 #
 # Runtime settings (including the LDAP/AD bind password and WEBUI_SECRET_KEY)
 # live in state/openwebui.env, passed with --env-file. The state volume
-# openwebui-data holds the SQLite database, uploads, RAG store and config.
+# openwebui-data holds the SQLite database, uploads, RAG store and config; the
+# admin panel settings persist there, except the ones this module owns.
 
 [Unit]
 Description=Open WebUI server
@@ -38,6 +39,9 @@ TimeoutStopSec=70
 # openwebui.env (runtime settings) is written by configure-module; touch it so
 # the --env-file below never fails on a fresh, not-yet-configured instance.
 ExecStartPre=/bin/touch %S/state/openwebui.env
+# Settings owned by this module win over the Open WebUI database; everything
+# else changed in the Open WebUI admin panel is kept (bin/enforce-module-settings).
+ExecStartPre=runagent enforce-module-settings
 ExecStartPre=/bin/rm -f %t/openwebui.pid %t/openwebui.ctr-id
 ExecStart=/usr/bin/podman run \
     --conmon-pidfile %t/openwebui.pid \
