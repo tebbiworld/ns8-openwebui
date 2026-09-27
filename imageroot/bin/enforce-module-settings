@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Make the settings owned by this module win over the Open WebUI database.
+#
+# Open WebUI keeps its configuration in the `config` table of webui.db, one row
+# per key. At start-up it inserts a row for every key that is missing, with the
+# value taken from the environment (Config.seed_defaults), and from then on the
+# row wins over the environment.
+#
+# The module runs Open WebUI with ENABLE_PERSISTENT_CONFIG=true, so everything
+# an administrator changes in the Open WebUI admin panel (embedding model, chunk
+# size, default model parameters, ...) survives a restart. The keys below are
+# the exception: they are configured on the NS8 settings page and written to
+# state/openwebui.env by configure-module. Deleting their rows before every
+# start makes Open WebUI seed them again from that env file, so the NS8 page
+# stays authoritative for them.
+#
+# Runs as ExecStartPre of openwebui.service, while the container is stopped.
+# It never blocks the start: on any problem it logs a warning and exits 0.
+
+import os
+import sqlite3
+import subprocess
+import sys
+
+VOLUME = "openwebui-data"
+
+# DEFAULT_CONFIG keys (open_webui/config.py, v0.11) fed by the env file.
+MANAGED_KEYS = (
+    "ollama.base_urls",       # OLLAMA_BASE_URL
+    "rag.ollama.base_url",    # defaults to OLLAMA_BASE_URL: follow the NS8 setting
+    "openai.enable",          # ENABLE_OPENAI_API
+    "webui.url",              # WEBUI_URL
+    "ui.enable_signup",       # ENABLE_SIGNUP
+    "ui.default_user_role",   # DEFAULT_USER_ROLE
+    "ldap.enable",
+    "ldap.server.label",
+    "ldap.server.host",
+    "ldap.server.port",
+    "ldap.server.attribute_for_mail",
+    "ldap.server.attribute_for_username",
+    "ldap.server.app_dn",
+    "ldap.server.app_password",
+    "ldap.server.users_dn",
+    "ldap.server.search_filter",
+    "ldap.server.use_tls",
+    "ldap.server.validate_cert",
+    "ldap.server.ciphers",
+)
+
+
+def warn(msg):
+    print(f"enforce-module-settings: {msg}", file=sys.stderr)
+
+
+def main():
+    proc = subprocess.run(
+        ["podman", "volume", "inspect", VOLUME, "--format", "{{.Mountpoint}}"],
+        capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        return  # first start: the volume does not exist yet
+    dbpath = os.path.join(proc.stdout.strip(), "webui.db")
+    if not os.path.exists(dbpath):
+        return  # first start: Open WebUI has not created its database yet
+
+    db = sqlite3.connect(dbpath, timeout=30)
+    try:
+        if not db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='config'"
+        ).fetchone():
+            return  # older schema: nothing to reset
+        placeholders = ",".join("?" * len(MANAGED_KEYS))
+        cur = db.execute(f"DELETE FROM config WHERE key IN ({placeholders})", MANAGED_KEYS)
+        db.commit()
+        if cur.rowcount:
+            print(f"enforce-module-settings: {cur.rowcount} module setting(s) reset to the NS8 values", file=sys.stderr)
+    finally:
+        db.close()
+
+
+try:
+    main()
+except Exception as ex:
+    warn(f"could not reset the module settings, the database values stay in effect: {ex}")
+sys.exit(0)

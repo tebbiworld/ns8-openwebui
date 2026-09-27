@@ -1,0 +1,30 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+#
+# Up to 1.1.x the module ran Open WebUI with ENABLE_PERSISTENT_CONFIG=false:
+# every change made in the Open WebUI admin panel was lost at the next restart
+# (e.g. an Ollama embedding model such as bge-m3 fell back to the built-in
+# all-MiniLM-L6-v2, and knowledge-base searches silently returned nothing).
+#
+# Switch the existing env file over in place instead of regenerating it, so
+# lines an administrator appended by hand (RAG_EMBEDDING_MODEL=..., CHUNK_SIZE=...)
+# are still there at the first start: Open WebUI then seeds them into its
+# database, where they are kept from now on. 90restart_services restarts the
+# service afterwards.
+#
+
+set -e
+
+# Redirect any output to the journal (stderr)
+exec 1>&2
+
+envfile="openwebui.env"
+[ -f "${envfile}" ] || exit 0
+
+sed -i -e 's/^ENABLE_PERSISTENT_CONFIG=.*/ENABLE_PERSISTENT_CONFIG=true/' "${envfile}"
+grep -q '^ENABLE_PERSISTENT_CONFIG=' "${envfile}" || echo 'ENABLE_PERSISTENT_CONFIG=true' >> "${envfile}"
