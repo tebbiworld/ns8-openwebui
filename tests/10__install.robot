@@ -24,12 +24,20 @@ Open WebUI answers behind Traefik
 
 Update to the image under test
     Skip If    '${SCENARIO}' != 'update'    scenario is ${SCENARIO}
-    # A setting appended to openwebui.env by hand must survive the update
+    # Up to 1.1.x Open WebUI took its settings from openwebui.env at every
+    # start; a line appended by hand is taken over into the database by the
+    # update. From 1.2.0 the database holds the settings and the line has no
+    # effect any more, so the check only applies when updating from 1.1.x.
+    ${from} =    Evaluate    tuple(int(x) for x in "${UPDATE_FROM}".rsplit(":", 1)[1].split("."))
     Run on node    runagent -m ${module_id} bash -c 'echo CHUNK_SIZE=1234 >> "$AGENT_STATE_DIR/openwebui.env"'
     Run on node    api-cli run update-module --data '{"force":true,"module_url":"${IMAGE_URL}","instances":["${module_id}"]}'
     Wait Until Keyword Succeeds    90 times    10 seconds    Application config is served
     ${chunk_size} =    Config value    rag.chunk_size
-    Should Be Equal    ${chunk_size}    1234
+    IF    ${from} < (1, 2, 0)
+        Should Be Equal    ${chunk_size}    1234
+    ELSE
+        Should Be Equal    ${chunk_size}    1000
+    END
 
 Configuration reads back
     ${cfg} =    Run task    module/${module_id}/get-configuration    {}
