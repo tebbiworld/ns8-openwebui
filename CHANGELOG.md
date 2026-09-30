@@ -1,6 +1,13 @@
 # Changelog
 
-## 1.2.0 — unreleased
+## 1.2.1 — unreleased
+
+### Changed
+
+- Open WebUI v0.11.3 → v0.11.4.
+- The update test expects a line appended to `openwebui.env` by hand to take effect only when updating from 1.1.x; from 1.2.0 the settings live in the database (see the update notes of 1.2.0).
+
+## 1.2.0 — 2026-09-27
 
 ### Fixed
 
