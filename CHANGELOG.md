@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.3.0 — unreleased
+
+### Added
+
+- **Unified directory login.** The AD/LDAP settings now offer the same chooser
+  as the other tebbiworld NS8 modules: a **user domain of this cluster**
+  (through the node's `ldapproxy`, no credentials stored, follows a bind-password
+  change or a domain-controller move automatically) **or** an **LDAP server of
+  its own**. With a user domain, login can be restricted to a group picked from
+  a list (nested AD groups count). The shared building blocks
+  (`pypkg/ldapsettings.py`, `components/LdapLogin.vue`, the `list-ldap-groups`
+  action, `bin/discover-ldap` as an `ExecStartPre`, the `user-domain-changed`
+  event, the `cluster:accountconsumer` label) are taken 1:1 from those modules;
+  `pypkg/owldap.py` translates the chosen settings into Open WebUI's native LDAP
+  support.
+
+### Security
+
+- Self-registration (`ENABLE_SIGNUP`) now defaults to **off**: a new instance no
+  longer lets anonymous visitors create accounts unless the administrator turns
+  it on.
+- A custom LDAP server with **StartTLS** is refused: Open WebUI binds with
+  `use_ssl` only, so StartTLS would have silently connected in clear text. Use an
+  `ldaps://` URL instead.
+- A configured login **group** that cannot be resolved now fails closed (every
+  login refused) instead of allowing all directory users.
+
+### Update notes
+
+- Existing instances are carried over as a **custom LDAP server** with their
+  previous behaviour (TLS verification kept as it was, the former free-text
+  search filter preserved), so the login is not lost. Switch to a cluster user
+  domain on the settings page when you want that.
+
 ## 1.2.1 — 2026-09-30
 
 ### Changed
