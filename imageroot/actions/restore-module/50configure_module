@@ -6,13 +6,15 @@
 #
 
 # Re-apply the restored settings: every field configure-module accepts is
-# passed. The LDAP bind password is left blank on purpose: blank = keep the
-# restored value from passwords.env.
+# passed. The directory fields come from the shared pypkg/ldapsettings.py; the
+# LDAP bind password is left blank on purpose (blank = keep the restored value
+# from passwords.env).
 
 import os
 import sys
 
 import agent
+import ldapsettings
 
 env = os.environ
 
@@ -28,21 +30,16 @@ data = {
     "lets_encrypt": env.get("TRAEFIK_LETS_ENCRYPT", "False") == "True",
     "webui_name": env.get("WEBUI_NAME", "Open WebUI"),
     "ollama_base_url": env.get("OLLAMA_BASE_URL", ""),
-    "enable_signup": env.get("ENABLE_SIGNUP", "true") == "true",
+    "enable_signup": env.get("ENABLE_SIGNUP", "false") == "true",
     "default_user_role": env.get("DEFAULT_USER_ROLE", "pending"),
     "enable_openai_api": env.get("ENABLE_OPENAI_API", "false") == "true",
     "timezone": env.get("TZ", "UTC"),
-    "ldap_enabled": env.get("LDAP_ENABLED", "False") == "True",
+    "ldap_enabled": env.get("LDAP_ENABLED", "false").strip().lower() in ("1", "true"),
     "ldap_label": env.get("LDAP_LABEL", "AD / LDAP"),
-    "ldap_url": env.get("LDAP_URL", ""),
-    "ldap_base_dn": env.get("LDAP_BASE_DN", ""),
-    "ldap_bind_dn": env.get("LDAP_BIND_DN", ""),
-    "ldap_bind_password": "",
-    "ldap_user_attribute": env.get("LDAP_USER_ATTRIBUTE", "sAMAccountName"),
     "ldap_mail_attribute": env.get("LDAP_MAIL_ATTRIBUTE", "mail"),
-    "ldap_search_filter": env.get("LDAP_SEARCH_FILTER", ""),
-    "ldap_validate_cert": env.get("LDAP_VALIDATE_CERT", "false") == "true",
 }
+data.update(ldapsettings.restore_data(default_source="custom"))
+
 if "TRAEFIK_LETS_ENCRYPT" not in env:
     # A backup taken with a module version that did not record the setting: say
     # so instead of silently asserting "off". The route is created without a
