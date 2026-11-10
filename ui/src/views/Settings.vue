@@ -91,55 +91,14 @@
                 :disabled="loading.getConfiguration || loading.configureModule"
                 class="field"
               ></cv-text-input>
-              <cv-text-input
-                :label="$t('settings.ldap_url')"
-                v-model.trim="ldap_url"
-                :placeholder="$t('settings.ldap_url_placeholder')"
-                :helper-text="$t('settings.ldap_url_helper')"
+              <LdapLogin
+                v-model="ldap"
+                :userDomains="user_domains"
+                :bindPasswordSet="ldap_bind_password_set"
+                :errors="ldapErrors"
                 :disabled="loading.getConfiguration || loading.configureModule"
-                :invalid-message="$t(error.ldap_url)"
-                ref="ldap_url"
-                class="field"
-              ></cv-text-input>
-              <cv-text-input
-                :label="$t('settings.ldap_base_dn')"
-                v-model.trim="ldap_base_dn"
-                :placeholder="$t('settings.ldap_base_dn_placeholder')"
-                :disabled="loading.getConfiguration || loading.configureModule"
-                :invalid-message="$t(error.ldap_base_dn)"
-                ref="ldap_base_dn"
-                class="field"
-              ></cv-text-input>
-              <cv-text-input
-                :label="$t('settings.ldap_bind_dn')"
-                v-model.trim="ldap_bind_dn"
-                :placeholder="$t('settings.ldap_bind_dn_placeholder')"
-                :disabled="loading.getConfiguration || loading.configureModule"
-                :invalid-message="$t(error.ldap_bind_dn)"
-                ref="ldap_bind_dn"
-                class="field"
-              ></cv-text-input>
-              <cv-text-input
-                type="password"
-                :label="$t('settings.ldap_bind_password')"
-                v-model="ldap_bind_password"
-                :placeholder="ldap_bind_password_set ? $t('settings.secret_keep_placeholder') : ''"
-                :helper-text="ldap_bind_password_set ? $t('settings.secret_is_set') : ''"
-                :password-hide-label="$t('settings.hide')"
-                :password-show-label="$t('settings.show')"
-                :disabled="loading.getConfiguration || loading.configureModule"
-                :invalid-message="$t(error.ldap_bind_password)"
-                ref="ldap_bind_password"
-                class="field"
-              ></cv-text-input>
-              <cv-text-input
-                :label="$t('settings.ldap_user_attribute')"
-                v-model.trim="ldap_user_attribute"
-                :placeholder="$t('settings.ldap_user_attribute_placeholder')"
-                :helper-text="$t('settings.ldap_user_attribute_helper')"
-                :disabled="loading.getConfiguration || loading.configureModule"
-                class="field"
-              ></cv-text-input>
+                ref="ldap"
+              />
               <cv-text-input
                 :label="$t('settings.ldap_mail_attribute')"
                 v-model.trim="ldap_mail_attribute"
@@ -148,18 +107,6 @@
                 :disabled="loading.getConfiguration || loading.configureModule"
                 class="field"
               ></cv-text-input>
-              <cv-text-input
-                :label="$t('settings.ldap_search_filter')"
-                v-model.trim="ldap_search_filter"
-                :placeholder="$t('settings.ldap_search_filter_placeholder')"
-                :helper-text="$t('settings.ldap_search_filter_helper')"
-                :disabled="loading.getConfiguration || loading.configureModule"
-                class="field"
-              ></cv-text-input>
-              <cv-toggle value="ldap_validate_cert" :label="$t('settings.ldap_validate_cert')" v-model="ldap_validate_cert" :disabled="loading.getConfiguration || loading.configureModule" class="toggle">
-                <template slot="text-left">{{ $t("settings.disabled") }}</template>
-                <template slot="text-right">{{ $t("settings.enabled") }}</template>
-              </cv-toggle>
             </template>
 
             <!-- Misc -->
@@ -193,9 +140,11 @@
 import to from "await-to-js";
 import { mapState } from "vuex";
 import { QueryParamService, UtilService, TaskService, IconService, PageTitleService } from "@nethserver/ns8-ui-lib";
+import LdapLogin, { LDAP_FIELDS, ldapFromConfiguration, validateLdap } from "@/components/LdapLogin";
 
 export default {
   name: "Settings",
+  components: { LdapLogin },
   mixins: [TaskService, IconService, UtilService, QueryParamService, PageTitleService],
   pageTitle() {
     return this.$t("settings.title") + " - " + this.appName;
@@ -209,24 +158,20 @@ export default {
       http2https: true,
       webui_name: "Open WebUI",
       ollama_base_url: "",
-      enable_signup: true,
+      enable_signup: false,
       default_user_role: "pending",
       enable_openai_api: false,
       timezone: "UTC",
       ldap_enabled: false,
       ldap_label: "AD / LDAP",
-      ldap_url: "",
-      ldap_base_dn: "",
-      ldap_bind_dn: "",
-      ldap_bind_password: "",
-      ldap_bind_password_set: false,
-      ldap_user_attribute: "sAMAccountName",
       ldap_mail_attribute: "mail",
-      ldap_search_filter: "",
-      ldap_validate_cert: false,
+      ldap: ldapFromConfiguration({}),
+      user_domains: [],
+      ldap_bind_password_set: false,
+      ldapErrors: {},
       url: "",
       loading: { getConfiguration: false, configureModule: false },
-      error: { getConfiguration: "", configureModule: "", host: "", ldap_url: "", ldap_base_dn: "", ldap_bind_dn: "", ldap_bind_password: "" },
+      error: { getConfiguration: "", configureModule: "", host: "" },
     };
   },
   computed: { ...mapState(["instanceName", "core", "appName"]) },
@@ -271,27 +216,22 @@ export default {
       this.http2https = c.http2https !== undefined ? !!c.http2https : true;
       this.webui_name = c.webui_name || "Open WebUI";
       this.ollama_base_url = c.ollama_base_url || "";
-      this.enable_signup = c.enable_signup !== undefined ? !!c.enable_signup : true;
+      this.enable_signup = !!c.enable_signup;
       this.default_user_role = c.default_user_role || "pending";
       this.enable_openai_api = !!c.enable_openai_api;
       this.timezone = c.timezone || "UTC";
       this.ldap_enabled = !!c.ldap_enabled;
       this.ldap_label = c.ldap_label || "AD / LDAP";
-      this.ldap_url = c.ldap_url || "";
-      this.ldap_base_dn = c.ldap_base_dn || "";
-      this.ldap_bind_dn = c.ldap_bind_dn || "";
-      this.ldap_bind_password_set = !!c.ldap_bind_password_set;
-      this.ldap_user_attribute = c.ldap_user_attribute || "sAMAccountName";
       this.ldap_mail_attribute = c.ldap_mail_attribute || "mail";
-      this.ldap_search_filter = c.ldap_search_filter || "";
-      this.ldap_validate_cert = !!c.ldap_validate_cert;
+      this.user_domains = c.user_domains || [];
+      this.ldap = ldapFromConfiguration(c);
+      this.ldap_bind_password_set = !!c.ldap_bind_password_set;
       this.url = c.url || "";
-      // secret is never echoed back — start blank so a blank submit keeps it
-      this.ldap_bind_password = "";
       this.focusElement("host");
     },
     validateConfigureModule() {
       this.clearErrors(this);
+      this.ldapErrors = {};
       let ok = true;
       const fail = (field, msg) => {
         this.error[field] = msg;
@@ -300,10 +240,10 @@ export default {
       };
       if (!this.host) fail("host", "common.required");
       if (this.ldap_enabled) {
-        if (!this.ldap_url) fail("ldap_url", "common.required");
-        if (!this.ldap_base_dn) fail("ldap_base_dn", "common.required");
-        if (!this.ldap_bind_dn) fail("ldap_bind_dn", "common.required");
-        if (!this.ldap_bind_password && !this.ldap_bind_password_set) fail("ldap_bind_password", "common.required");
+        const ldapErrors = validateLdap(this.ldap, this.ldap_bind_password_set);
+        for (const [field, msg] of ldapErrors) this.$set(this.ldapErrors, field, msg);
+        if (ldapErrors.length && ok && this.$refs.ldap) this.$refs.ldap.focus(ldapErrors[0][0]);
+        if (ldapErrors.length) ok = false;
       }
       return ok;
     },
@@ -311,7 +251,14 @@ export default {
       this.loading.configureModule = false;
       let focusSet = false;
       for (const e of validationErrors) {
-        if (e.field !== "(root)") {
+        if (e.field === "(root)") continue;
+        if (LDAP_FIELDS.includes(e.field)) {
+          this.$set(this.ldapErrors, e.field, "ldap_login." + e.error);
+          if (!focusSet && this.$refs.ldap) {
+            this.$refs.ldap.focus(e.field);
+            focusSet = true;
+          }
+        } else {
           this.error[e.field] = this.$t("settings." + e.error);
           if (!focusSet) {
             this.focusElement(e.field);
@@ -339,15 +286,9 @@ export default {
         enable_openai_api: this.enable_openai_api,
         timezone: this.timezone || "UTC",
         ldap_enabled: this.ldap_enabled,
-        ldap_label: this.ldap_label,
-        ldap_url: this.ldap_url,
-        ldap_base_dn: this.ldap_base_dn,
-        ldap_bind_dn: this.ldap_bind_dn,
-        ldap_bind_password: this.ldap_bind_password,
-        ldap_user_attribute: this.ldap_user_attribute,
-        ldap_mail_attribute: this.ldap_mail_attribute,
-        ldap_search_filter: this.ldap_search_filter,
-        ldap_validate_cert: this.ldap_validate_cert,
+        ldap_label: this.ldap_label || "AD / LDAP",
+        ldap_mail_attribute: this.ldap_mail_attribute || "mail",
+        ...this.ldap,
       };
       const res = await to(this.createModuleTaskForApp(this.instanceName, {
         action: taskAction,

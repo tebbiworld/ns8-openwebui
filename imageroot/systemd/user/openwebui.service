@@ -36,9 +36,14 @@ WorkingDirectory=%S/state
 Restart=always
 TimeoutStartSec=300
 TimeoutStopSec=70
-# openwebui.env (runtime settings) is written by configure-module; touch it so
-# the --env-file below never fails on a fresh, not-yet-configured instance.
-ExecStartPre=/bin/touch %S/state/openwebui.env
+# openwebui.env (runtime settings) is written by configure-module; touch both
+# env files so the --env-file options below never fail on a fresh,
+# not-yet-configured instance.
+ExecStartPre=/bin/touch %S/state/openwebui.env %S/state/ldap.env
+# Resolve the directory login into Open WebUI's native LDAP_* settings on every
+# start, so a rotated bind password or a moved user domain is picked up without
+# re-saving the settings page (bin/discover-ldap -> state/ldap.env).
+ExecStartPre=runagent discover-ldap
 # Settings owned by this module win over the Open WebUI database; everything
 # else changed in the Open WebUI admin panel is kept (bin/enforce-module-settings).
 ExecStartPre=runagent enforce-module-settings
@@ -51,6 +56,7 @@ ExecStart=/usr/bin/podman run \
     --network=host \
     --volume openwebui-data:/app/backend/data:z \
     --env-file %S/state/openwebui.env \
+    --env-file %S/state/ldap.env \
     ${OPEN_WEBUI_IMAGE}
 ExecStop=/usr/bin/podman stop --ignore --cidfile %t/openwebui.ctr-id -t 30
 ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/openwebui.ctr-id

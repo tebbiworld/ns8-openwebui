@@ -11,16 +11,21 @@
 #   * agent.set_env(...) -> state/environment: readable settings echoed back by
 #     get-configuration, plus values the systemd unit expands (WEB_PORT,
 #     OPEN_WEBUI_IMAGE, TRAEFIK_*).
-#   * state/openwebui.env -> passed to the container with --env-file. This is
-#     where the actual Open WebUI runtime settings (including the LDAP bind
-#     password and WEBUI_SECRET_KEY) reach the application.
+#   * state/openwebui.env -> passed to the container with --env-file. The
+#     application settings (Ollama URL, sign-up, ...) reach Open WebUI there.
+#
+# The directory login is handled by the shared pypkg/ldapsettings.py (identical
+# to ns8-clamav / ns8-idevice-backup) plus the module glue in pypkg/owldap.py.
+# Its native LDAP_* settings are NOT written here: bin/discover-ldap resolves
+# them into state/ldap.env on every start, so a rotated bind password or a
+# moved user domain is picked up without re-saving this page.
 
 import os
 import sys
 import json
-import urllib.parse
 
 import agent
+import ldapsettings
 import modsecrets
 
 
@@ -50,7 +55,7 @@ webui_url = f"{scheme}://{host}"
 # base URLs, e.g. http://10.0.0.5:11434 (separate several with ';').
 ollama_base_url = (data.get("ollama_base_url") or "").strip().rstrip("/")
 webui_name = data.get("webui_name") or "Open WebUI"
-enable_signup = as_bool_str(data.get("enable_signup", True), True)
+enable_signup = as_bool_str(data.get("enable_signup", False), False)
 enable_openai_api = as_bool_str(data.get("enable_openai_api", False), False)
 default_user_role = data.get("default_user_role") or "pending"
 timezone = data.get("timezone") or "UTC"
@@ -63,52 +68,29 @@ agent.set_env("ENABLE_OPENAI_API", enable_openai_api)
 agent.set_env("DEFAULT_USER_ROLE", default_user_role)
 agent.set_env("TZ", timezone)
 
-# --- LDAP / Active Directory login ------------------------------------------
-# Maps onto Open WebUI's native LDAP support (ENABLE_LDAP / LDAP_* env vars).
+# --- Directory login (shared building block) ---------------------------------
+# domain  = a user domain of this cluster (ldapproxy, no credentials stored)
+# custom  = an LDAP server of its own (URL/bind DN in the environment, bind
+#           password in state/passwords.env)
 ldap_enabled = bool(data.get("ldap_enabled", False))
-ldap_label = (data.get("ldap_label") or "AD / LDAP").strip()
-ldap_url = (data.get("ldap_url") or "").strip().rstrip("/")
-ldap_base_dn = (data.get("ldap_base_dn") or "").strip()
-ldap_bind_dn = (data.get("ldap_bind_dn") or "").strip()
-ldap_user_attribute = (data.get("ldap_user_attribute") or "sAMAccountName").strip()
-ldap_mail_attribute = (data.get("ldap_mail_attribute") or "mail").strip()
-ldap_search_filter = (data.get("ldap_search_filter") or "").strip()
-ldap_validate_cert = as_bool_str(data.get("ldap_validate_cert", False), False)
+agent.set_env("LDAP_ENABLED", "true" if ldap_enabled else "false")
+ldapsettings.apply(data, active=ldap_enabled, legacy_source="custom")
 
-# The settings UI never echoes the bind password back: a blank field means
-# "keep the stored value", not "clear it".
-ldap_bind_password = data.get("ldap_bind_password")
-if not ldap_bind_password:
-    ldap_bind_password = modsecrets.get("LDAP_BIND_PASSWORD")
+# Open WebUI needs a login button label and a mail attribute (it refuses users
+# without an e-mail); these are not part of the shared settings.
+agent.set_env("LDAP_LABEL", (data.get("ldap_label") or "AD / LDAP").strip() or "AD / LDAP")
+agent.set_env("LDAP_MAIL_ATTRIBUTE", (data.get("ldap_mail_attribute") or "mail").strip() or "mail")
 
-# Derive host / port / TLS from the LDAP URL (ldaps://host:636 or ldap://host:389).
-ldap_host = ""
-ldap_port = "636"
-ldap_use_tls = "true"
-if ldap_url:
-    parts = urllib.parse.urlsplit(ldap_url)
-    ldap_host = parts.hostname or ""
-    use_ssl = parts.scheme != "ldap"
-    ldap_port = str(parts.port or (636 if use_ssl else 389))
-    ldap_use_tls = "true" if use_ssl else "false"
-
-# Persist readable settings (for get-configuration; password kept for blank-submit).
-agent.set_env("LDAP_ENABLED", ldap_enabled)
-agent.set_env("LDAP_LABEL", ldap_label)
-agent.set_env("LDAP_URL", ldap_url)
-agent.set_env("LDAP_BASE_DN", ldap_base_dn)
-agent.set_env("LDAP_BIND_DN", ldap_bind_dn)
-# a secret: state/passwords.env, not the module environment
-modsecrets.write({"LDAP_BIND_PASSWORD": ldap_bind_password})
-agent.set_env("LDAP_USER_ATTRIBUTE", ldap_user_attribute)
-agent.set_env("LDAP_MAIL_ATTRIBUTE", ldap_mail_attribute)
-agent.set_env("LDAP_SEARCH_FILTER", ldap_search_filter)
-agent.set_env("LDAP_VALIDATE_CERT", ldap_validate_cert)
-
+# The settings page is authoritative for the search filter through ldap_group;
+# drop the migration escape hatch (a free-text filter preserved from an older
+# version) once the page has been saved.
+if os.environ.get("LDAP_RAW_SEARCH_FILTER"):
+    agent.munset_env(["LDAP_RAW_SEARCH_FILTER"])
 
 # --- Container env file (--env-file) -----------------------------------------
-# Everything the Open WebUI container consumes at runtime. Written atomically.
-ldap_active = ldap_enabled and ldap_host and ldap_base_dn and ldap_bind_dn
+# Everything the Open WebUI container consumes at runtime, except the native
+# LDAP_* settings (state/ldap.env, written by bin/discover-ldap). Written
+# atomically; carries WEBUI_SECRET_KEY, so keep it private.
 lines = [
     "# Generated by configure-module. Do not edit by hand.",
     # Open WebUI stores its settings in the database: env values only seed keys
@@ -116,7 +98,7 @@ lines = [
     # changes made in the Open WebUI admin panel (embedding model, chunk size,
     # default model parameters, ...) survive a restart. The settings owned by
     # this module (Ollama URL, sign-up, user role, LDAP) are reset to the values
-    # below before every start by bin/enforce-module-settings.
+    # below / in ldap.env before every start by bin/enforce-module-settings.
     "ENABLE_PERSISTENT_CONFIG=true",
     # Seed only (the admin panel can change it): local models of 14B parameters
     # and below cannot drive Open WebUI's native tool calling reliably (invented
@@ -135,22 +117,7 @@ lines = [
     f"ENABLE_OPENAI_API={enable_openai_api}",
     f"DEFAULT_USER_ROLE={default_user_role}",
     f"TZ={timezone}",
-    # --- LDAP ---
-    f"ENABLE_LDAP={'true' if ldap_active else 'false'}",
-    f"LDAP_SERVER_LABEL={ldap_label}",
-    f"LDAP_SERVER_HOST={ldap_host}",
-    f"LDAP_SERVER_PORT={ldap_port}",
-    f"LDAP_ATTRIBUTE_FOR_USERNAME={ldap_user_attribute}",
-    f"LDAP_ATTRIBUTE_FOR_MAIL={ldap_mail_attribute}",
-    f"LDAP_APP_DN={ldap_bind_dn}",
-    f"LDAP_APP_PASSWORD={ldap_bind_password}",
-    f"LDAP_SEARCH_BASE={ldap_base_dn}",
-    f"LDAP_SEARCH_FILTER={ldap_search_filter}",
-    f"LDAP_USE_TLS={ldap_use_tls}",
-    f"LDAP_VALIDATE_CERT={ldap_validate_cert}",
-    "LDAP_CIPHERS=ALL",
 ]
-# openwebui.env carries WEBUI_SECRET_KEY and the bind password: keep it private
 os.umask(0o077)
 with open("openwebui.env.tmp", "w") as fp:
     fp.write("\n".join(lines) + "\n")

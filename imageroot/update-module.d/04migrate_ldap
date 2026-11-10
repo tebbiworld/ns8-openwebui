@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Up to 1.2.1 the module offered only an LDAP server entered by hand; its
+# settings (ENABLE_LDAP + LDAP_SERVER_* mapped from LDAP_URL, LDAP_BASE_DN, ...)
+# were written straight into openwebui.env, and LDAP_SEARCH_FILTER was a free
+# text field.
+#
+# From this version the directory login is the shared chooser "user domain of
+# this cluster" OR "LDAP server of its own" (pypkg/ldapsettings.py). Carry an
+# existing instance over as a custom server with its previous behaviour so it
+# does NOT lose its login:
+#   * LDAP_SOURCE   = custom
+#   * LDAP_SCHEMA   = ad (the former default login attribute was sAMAccountName)
+#   * LDAP_START_TLS= false (the previous version never used StartTLS)
+#   * LDAP_TLS_VERIFY = the former LDAP_VALIDATE_CERT (default off: do not
+#     suddenly start verifying and break a self-signed setup)
+#   * the former free-text LDAP_SEARCH_FILTER is preserved verbatim in
+#     LDAP_RAW_SEARCH_FILTER; bin/discover-ldap keeps using it until the
+#     settings page is saved with a group instead.
+# The bind password already lives in state/passwords.env (05migrate_secrets,
+# unchanged). Nothing to do for an instance that never used the old LDAP.
+
+import os
+import sys
+
+import agent
+
+exec_env = os.environ
+
+if exec_env.get("LDAP_SOURCE"):
+    sys.exit(0)  # already migrated / created with the new layout
+
+# Only touch instances that actually carry the old LDAP settings.
+if not (exec_env.get("LDAP_URL") or exec_env.get("LDAP_ENABLED")):
+    sys.exit(0)
+
+updates = {
+    "LDAP_SOURCE": "custom",
+    "LDAP_SCHEMA": exec_env.get("LDAP_SCHEMA") or "ad",
+    "LDAP_START_TLS": "false",
+    "LDAP_TLS_VERIFY": "true" if (exec_env.get("LDAP_VALIDATE_CERT", "false").strip().lower() in ("1", "true")) else "false",
+    "LDAP_GROUP": exec_env.get("LDAP_GROUP") or "",
+    "LDAP_DOMAIN": exec_env.get("LDAP_DOMAIN") or "",
+}
+
+# Normalise the enabled flag (older versions stored "True"/"False").
+updates["LDAP_ENABLED"] = "true" if (exec_env.get("LDAP_ENABLED", "false").strip().lower() in ("1", "true")) else "false"
+
+# Preserve the former free-text filter so the login keeps restricting exactly
+# as before, until an admin re-saves the page with a group.
+old_filter = (exec_env.get("LDAP_SEARCH_FILTER") or "").strip()
+if old_filter:
+    updates["LDAP_RAW_SEARCH_FILTER"] = old_filter
+
+agent.mset_env(updates)
+print(agent.SD_NOTICE + "migrated the directory login to a custom LDAP server with its previous settings", file=sys.stderr)

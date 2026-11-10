@@ -6,14 +6,16 @@
 #
 
 # Return the current configuration for the UI. The LDAP bind password is never
-# echoed back; only a boolean tells the UI whether one is stored.
+# echoed back; only a boolean tells the UI whether one is stored. The directory
+# settings come from the shared pypkg/ldapsettings.py (ldap_source, ldap_domain,
+# ldap_group, ldap_url, ... and the list of the cluster's user domains).
 
 import os
 import sys
 import json
 
 import agent
-import modsecrets
+import ldapsettings
 
 host = os.getenv("TRAEFIK_HOST", "")
 
@@ -23,21 +25,16 @@ config = {
     "lets_encrypt": agent.get_route(os.environ["MODULE_ID"]).get("lets_encrypt", False),
     "webui_name": os.getenv("WEBUI_NAME", "Open WebUI"),
     "ollama_base_url": os.getenv("OLLAMA_BASE_URL", ""),
-    "enable_signup": os.getenv("ENABLE_SIGNUP", "true") == "true",
+    "enable_signup": os.getenv("ENABLE_SIGNUP", "false") == "true",
     "default_user_role": os.getenv("DEFAULT_USER_ROLE", "pending"),
     "enable_openai_api": os.getenv("ENABLE_OPENAI_API", "false") == "true",
     "timezone": os.getenv("TZ", "UTC"),
-    "ldap_enabled": os.getenv("LDAP_ENABLED") == "True",
+    "ldap_enabled": os.getenv("LDAP_ENABLED", "false").strip().lower() in ("1", "true"),
     "ldap_label": os.getenv("LDAP_LABEL", "AD / LDAP"),
-    "ldap_url": os.getenv("LDAP_URL", ""),
-    "ldap_base_dn": os.getenv("LDAP_BASE_DN", ""),
-    "ldap_bind_dn": os.getenv("LDAP_BIND_DN", ""),
-    "ldap_bind_password_set": bool(modsecrets.get("LDAP_BIND_PASSWORD")),
-    "ldap_user_attribute": os.getenv("LDAP_USER_ATTRIBUTE", "sAMAccountName"),
     "ldap_mail_attribute": os.getenv("LDAP_MAIL_ATTRIBUTE", "mail"),
-    "ldap_search_filter": os.getenv("LDAP_SEARCH_FILTER", ""),
-    "ldap_validate_cert": os.getenv("LDAP_VALIDATE_CERT") == "true",
     "url": f"https://{host}/" if host else "",
 }
+# Shared directory settings + the cluster's user domains for the selector.
+config.update(ldapsettings.configuration())
 
 json.dump(config, fp=sys.stdout)

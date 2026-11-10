@@ -47,20 +47,40 @@ sessions survive restarts.
 
 ### Active Directory / LDAP
 
-Maps onto Open WebUI's native LDAP support. Enable it and provide your directory
-details; users then log in with their AD/LDAP accounts.
+Enable the directory login and choose the source:
+
+* **User domain of this cluster (recommended)** — pick a user domain that NS8
+  already manages. No credentials are stored in the module: the connection
+  (the node's `ldapproxy` on the loopback, the bind account) is read every time
+  the service starts, so a rotated bind password or a moved domain controller is
+  followed automatically. Optionally restrict login to the members of a group,
+  chosen from a list (nested groups count). NS8 can also add an external AD/LDAP
+  as a user domain, which then appears here too.
+* **LDAP server of its own (advanced)** — enter the server URL, base DN, bind
+  account and login attribute yourself. Use this only for a directory that is
+  not a user domain of the cluster. The bind password is stored in
+  `state/passwords.env` (mode 0600), never in the module environment.
+
+This chooser is the same shared building block used by the other tebbiworld NS8
+modules (ns8-clamav, ns8-idevice-backup). The module translates the chosen
+settings into Open WebUI's native LDAP support; `bin/discover-ldap` writes them
+to `state/ldap.env` before every start.
+
+Two settings are specific to Open WebUI:
 
 | Setting | Env var | Notes |
 | --- | --- | --- |
-| LDAP URL | `LDAP_SERVER_HOST` / `LDAP_SERVER_PORT` / `LDAP_USE_TLS` | e.g. `ldaps://ad.example.org:636`; parsed into host, port and TLS flag. |
 | Login button label | `LDAP_SERVER_LABEL` | Text on the LDAP login option. |
-| Search base DN | `LDAP_SEARCH_BASE` | e.g. `DC=ad,DC=example,DC=org`. |
-| Bind DN | `LDAP_APP_DN` | Service account used to search the directory. |
-| Bind password | `LDAP_APP_PASSWORD` | Password of the service account (blank on save keeps the stored one). |
-| Username attribute | `LDAP_ATTRIBUTE_FOR_USERNAME` | `sAMAccountName` (AD) or `uid` (OpenLDAP). |
 | Mail attribute | `LDAP_ATTRIBUTE_FOR_MAIL` | Open WebUI requires every user to have an e-mail. Defaults to `mail`; on Active Directory where `mail` is empty, use `userPrincipalName`. |
-| Search filter | `LDAP_SEARCH_FILTER` | Optional; restrict login, e.g. `(memberOf=CN=ai-users,...)`. |
-| Validate LDAPS certificate | `LDAP_VALIDATE_CERT` | Off by default for internal CAs / self-signed certs. |
+
+Caveats of Open WebUI's native LDAP:
+
+* **No StartTLS.** Open WebUI binds with `use_ssl` only, so a custom server must
+  use an `ldaps://` URL; a `ldap://` + StartTLS combination is refused.
+* **Group restriction** becomes a single `LDAP_SEARCH_FILTER`: the module
+  resolves the group to its DN and builds a `memberOf` filter (nested on AD). If
+  the group cannot be resolved, every login is refused (fail closed) rather than
+  allowing everyone. For `rfc2307` the server needs the `memberof` overlay.
 
 ### Settings made in the Open WebUI admin panel
 
