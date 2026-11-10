@@ -3,7 +3,7 @@ Library     SSHLibrary
 Resource    api.resource
 
 *** Variables ***
-${CONFIG}    {"host":"openwebui.ci.test","lets_encrypt":false,"http2https":true,"webui_name":"CI WebUI","ollama_base_url":"http://127.0.0.1:11434","enable_signup":true,"default_user_role":"pending","enable_openai_api":false,"timezone":"Europe/Berlin","ldap_enabled":true,"ldap_label":"CI LDAP","ldap_url":"ldaps://ldap.ci.test:636","ldap_base_dn":"dc=ci,dc=test","ldap_bind_dn":"cn=reader,dc=ci,dc=test","ldap_bind_password":"Bind#Pass 1","ldap_user_attribute":"uid","ldap_mail_attribute":"mail","ldap_search_filter":"","ldap_validate_cert":false}
+${CONFIG}    {"host":"openwebui.ci.test","lets_encrypt":false,"http2https":true,"webui_name":"CI WebUI","ollama_base_url":"http://127.0.0.1:11434","enable_signup":true,"default_user_role":"pending","enable_openai_api":false,"timezone":"Europe/Berlin","ldap_enabled":true,"ldap_label":"CI LDAP","ldap_mail_attribute":"mail","ldap_source":"custom","ldap_url":"ldaps://ldap.ci.test:636","ldap_start_tls":false,"ldap_tls_verify":false,"ldap_schema":"rfc2307","ldap_base_dn":"dc=ci,dc=test","ldap_bind_dn":"cn=reader,dc=ci,dc=test","ldap_bind_password":"Bind#Pass 1","ldap_user_attribute":"uid","ldap_group":""}
 
 *** Test Cases ***
 Install the module
