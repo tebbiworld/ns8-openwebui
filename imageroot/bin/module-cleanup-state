@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Backup hook. Remove the database snapshot written by module-dump-state once
+# the backup has copied it, so the snapshot is not left on disk between backups.
+# Runs with the working directory set to the module state directory.
+
+set -e
+exec 1>&2 # stdout is reserved for action output; everything here is a log line
+
+state_dir="${AGENT_STATE_DIR:-${PWD}}"
+rm -vf "${state_dir}/webui.db"

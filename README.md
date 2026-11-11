@@ -124,6 +124,25 @@ One rootless named volume survives container recreation:
 * `openwebui-data` — mounted at `/app/backend/data`: SQLite database, uploaded
   files, RAG vector store, avatars and the admin panel settings.
 
+## Backup and restore
+
+The module backup contains `state/passwords.env` (the `WEBUI_SECRET_KEY` and the
+LDAP bind password) and the `openwebui-data` volume (uploads, the RAG vector
+store and the cache).
+
+The database (`webui.db`) is **not** taken from the live volume, where Open
+WebUI writes it in WAL mode and a plain copy could be torn. Instead
+`bin/module-dump-state` writes a transactionally consistent snapshot (the SQLite
+online-backup API) into the backup just before it runs, and
+`bin/module-cleanup-state` removes that snapshot afterwards. On restore,
+`restore-module` puts the snapshot back over the copy in the volume (and drops
+any stale WAL side files). A backup made by a module version older than this one
+carries no snapshot; its volume copy of `webui.db` is then used unchanged.
+
+Cloning or moving an instance copies the volume directly (the core does this,
+without the snapshot step), so for a consistent clone of a busy instance stop it
+first, or take a backup and restore it into a new instance.
+
 ## Notes
 
 * Runtime settings, including the LDAP bind password and `WEBUI_SECRET_KEY`, are

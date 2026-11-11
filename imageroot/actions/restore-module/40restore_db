@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# restore-module. Put the consistent database snapshot taken at backup time
+# (state/webui.db, written by module-dump-state) back into the openwebui-data
+# volume, replacing the live copy that restic restored from the volume, and
+# remove any WAL side files restored alongside so SQLite does not replay stale
+# frames over the snapshot.
+#
+# This runs in restore-module only, NOT in clone-module: a clone copies the
+# source instance's own volume (handled by the core), so there is no snapshot to
+# put back. Backups taken by an older module version carry no snapshot either;
+# the volume's own webui.db is then kept as-is.
+
+set -e
+exec 1>&2 # stdout is reserved for action output; everything here is a log line
+
+state_dir="${AGENT_STATE_DIR:-${PWD}/state}"
+snapshot="${state_dir}/webui.db"
+
+if [ ! -f "${snapshot}" ]; then
+    echo "40restore_db: no webui.db snapshot in this backup; keeping the restored volume copy"
+    exit 0
+fi
+
+# The volume was created when the module was installed and its contents were
+# restored by restic before this step; create it defensively just in case.
+podman volume exists openwebui-data || podman volume create openwebui-data >/dev/null
+mountpoint="$(podman volume inspect openwebui-data --format '{{.Mountpoint}}')"
+if [ -z "${mountpoint}" ] || [ ! -d "${mountpoint}" ]; then
+    echo "<3>40restore_db: the openwebui-data volume has no mountpoint"
+    exit 1
+fi
+
+install -m 600 "${snapshot}" "${mountpoint}/webui.db"
+rm -f "${mountpoint}/webui.db-wal" "${mountpoint}/webui.db-shm"
+echo "40restore_db: restored the consistent webui.db snapshot into the volume (${mountpoint})"

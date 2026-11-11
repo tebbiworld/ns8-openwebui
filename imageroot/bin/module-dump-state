@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+#
+# Copyright (C) 2026 tebbi
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+# Backup hook. Write a CONSISTENT snapshot of the Open WebUI database to
+# state/webui.db so the backup never captures a half-written SQLite file from
+# the live volume. The backup framework runs this with the working directory set
+# to the module state directory and then includes state/webui.db (see
+# etc/state-include.conf); module-cleanup-state removes it afterwards.
+#
+# state-include.conf lists state/webui.db unconditionally, and the core feeds
+# that list to restic with --files-from; a missing path would fail the whole
+# backup. So this hook ALWAYS produces the file -- an empty but valid database
+# when the instance has none yet.
+#
+# The snapshot is taken on the node with the SQLite online-backup API, which
+# folds committed WAL frames into a standalone file and coordinates with the
+# running Open WebUI through SQLite's own locking. It is therefore correct
+# whether the container is running or stopped, and (unlike a plain file copy of a
+# stopped instance) never drops committed-but-not-checkpointed WAL frames.
+
+set -e
+exec 1>&2 # stdout is reserved for action output; everything here is a log line
+umask 077 # the database carries secrets (API keys, hashed passwords, LDAP bind)
+
+state_dir="${AGENT_STATE_DIR:-${PWD}}"
+dump="${state_dir}/webui.db"
+rm -f "${dump}"
+
+# Open WebUI keeps its database at webui.db inside the openwebui-data volume. The
+# volume does not exist until the instance has started at least once. Reading it
+# from the node assumes the container runs as root (UID 0), so the volume files
+# are owned by this rootless module user; the pinned open-webui image does. If a
+# future image dropped to a non-root in-container UID, the files would be owned
+# by a sub-UID and this host-side read would have to move into the container.
+src=""
+if podman volume exists openwebui-data; then
+    mountpoint="$(podman volume inspect openwebui-data --format '{{.Mountpoint}}')"
+    if [ -n "${mountpoint}" ] && [ -f "${mountpoint}/webui.db" ]; then
+        src="${mountpoint}/webui.db"
+    fi
+fi
+
+if [ -z "${src}" ]; then
+    # Never configured: write an empty but valid snapshot so the include list is
+    # always satisfiable and a later restore is a harmless no-op.
+    python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1]).close()' "${dump}"
+    echo "module-dump-state: no webui.db yet; wrote an empty snapshot"
+    exit 0
+fi
+
+python3 - "${src}" "${dump}" <<'PY'
+import sqlite3
+import sys
+
+src = sqlite3.connect(sys.argv[1], timeout=30)
+dst = sqlite3.connect(sys.argv[2])
+try:
+    with dst:
+        src.backup(dst)
+finally:
+    dst.close()
+    src.close()
+PY
+echo "module-dump-state: wrote a consistent webui.db snapshot ($(stat -c%s "${dump}") bytes)"

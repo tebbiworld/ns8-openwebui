@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.1 — unreleased
+
+### Fixed
+
+- **Consistent database backup.** The backup used to copy the live SQLite
+  database (`webui.db`) straight from the volume, where Open WebUI writes it in
+  WAL mode, so the saved file could be torn. A new `module-dump-state` hook now
+  writes a transactionally consistent snapshot (the SQLite online-backup API)
+  into the backup, `module-cleanup-state` removes it afterwards, and
+  `restore-module` restores that snapshot over the volume copy (dropping any
+  stale WAL side files). Backups made by an older version still restore — their
+  own `webui.db` from the volume is used when no snapshot is present. Uploads and
+  the RAG vector store keep being backed up as volume files.
+
 ## 1.3.0 — 2026-11-11
 
 ### Added
