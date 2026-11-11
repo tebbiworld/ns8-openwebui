@@ -31,7 +31,11 @@ dump="${state_dir}/webui.db"
 rm -f "${dump}"
 
 # Open WebUI keeps its database at webui.db inside the openwebui-data volume. The
-# volume does not exist until the instance has started at least once.
+# volume does not exist until the instance has started at least once. Reading it
+# from the node assumes the container runs as root (UID 0), so the volume files
+# are owned by this rootless module user; the pinned open-webui image does. If a
+# future image dropped to a non-root in-container UID, the files would be owned
+# by a sub-UID and this host-side read would have to move into the container.
 src=""
 if podman volume exists openwebui-data; then
     mountpoint="$(podman volume inspect openwebui-data --format '{{.Mountpoint}}')"
