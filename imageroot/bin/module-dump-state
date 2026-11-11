@@ -6,41 +6,54 @@
 #
 
 # Backup hook. Write a CONSISTENT snapshot of the Open WebUI database to
-# state/webui.db so the backup does not capture a half-written SQLite file from
+# state/webui.db so the backup never captures a half-written SQLite file from
 # the live volume. The backup framework runs this with the working directory set
 # to the module state directory and then includes state/webui.db (see
 # etc/state-include.conf); module-cleanup-state removes it afterwards.
 #
-# Open WebUI keeps its database at /app/backend/data/webui.db inside the
-# openwebui-data volume and writes it in WAL mode, so copying the file straight
-# from the running volume can tear it. The SQLite online-backup API
-# (Connection.backup) produces a transactionally consistent copy while the
-# server keeps running; it is taken inside the running container (which has the
-# right Python) and copied out.
+# state-include.conf lists state/webui.db unconditionally, and the core feeds
+# that list to restic with --files-from; a missing path would fail the whole
+# backup. So this hook ALWAYS produces the file -- an empty but valid database
+# when the instance has none yet.
 #
-# When the container is not running nothing writes the database, so the copy in
-# the volume backup is already consistent and no snapshot is needed.
+# The snapshot is taken on the node with the SQLite online-backup API, which
+# folds committed WAL frames into a standalone file and coordinates with the
+# running Open WebUI through SQLite's own locking. It is therefore correct
+# whether the container is running or stopped, and (unlike a plain file copy of a
+# stopped instance) never drops committed-but-not-checkpointed WAL frames.
 
 set -e
 exec 1>&2 # stdout is reserved for action output; everything here is a log line
+umask 077 # the database carries secrets (API keys, hashed passwords, LDAP bind)
 
 state_dir="${AGENT_STATE_DIR:-${PWD}}"
 dump="${state_dir}/webui.db"
-
-# Start from a clean slate: never ship a stale snapshot from an earlier run.
 rm -f "${dump}"
 
-if [ "$(podman inspect -f '{{.State.Running}}' openwebui 2>/dev/null)" != "true" ]; then
-    echo "module-dump-state: openwebui container is not running; the volume copy of webui.db is quiescent, no snapshot needed"
+# Open WebUI keeps its database at webui.db inside the openwebui-data volume. The
+# volume does not exist until the instance has started at least once.
+src=""
+if podman volume exists openwebui-data; then
+    mountpoint="$(podman volume inspect openwebui-data --format '{{.Mountpoint}}')"
+    if [ -n "${mountpoint}" ] && [ -f "${mountpoint}/webui.db" ]; then
+        src="${mountpoint}/webui.db"
+    fi
+fi
+
+if [ -z "${src}" ]; then
+    # Never configured: write an empty but valid snapshot so the include list is
+    # always satisfiable and a later restore is a harmless no-op.
+    python3 -c 'import sqlite3, sys; sqlite3.connect(sys.argv[1]).close()' "${dump}"
+    echo "module-dump-state: no webui.db yet; wrote an empty snapshot"
     exit 0
 fi
 
-# Transactionally consistent snapshot, written to a temporary file inside the
-# container (not into the volume, which the backup would pick up as well).
-podman exec openwebui python3 - <<'PY'
+python3 - "${src}" "${dump}" <<'PY'
 import sqlite3
-src = sqlite3.connect("/app/backend/data/webui.db")
-dst = sqlite3.connect("/tmp/webui-dump.db")
+import sys
+
+src = sqlite3.connect(sys.argv[1], timeout=30)
+dst = sqlite3.connect(sys.argv[2])
 try:
     with dst:
         src.backup(dst)
@@ -48,8 +61,4 @@ finally:
     dst.close()
     src.close()
 PY
-
-podman cp openwebui:/tmp/webui-dump.db "${dump}"
-podman exec openwebui rm -f /tmp/webui-dump.db
-chmod 600 "${dump}"
 echo "module-dump-state: wrote a consistent webui.db snapshot ($(stat -c%s "${dump}") bytes)"

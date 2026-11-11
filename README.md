@@ -139,6 +139,10 @@ online-backup API) into the backup just before it runs, and
 any stale WAL side files). A backup made by a module version older than this one
 carries no snapshot; its volume copy of `webui.db` is then used unchanged.
 
+Cloning or moving an instance copies the volume directly (the core does this,
+without the snapshot step), so for a consistent clone of a busy instance stop it
+first, or take a backup and restore it into a new instance.
+
 ## Notes
 
 * Runtime settings, including the LDAP bind password and `WEBUI_SECRET_KEY`, are

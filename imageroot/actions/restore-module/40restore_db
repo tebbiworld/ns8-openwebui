@@ -11,8 +11,9 @@
 # remove any WAL side files restored alongside so SQLite does not replay stale
 # frames over the snapshot.
 #
-# This runs in restore-module only, NOT in clone-module: a clone starts with a
-# fresh database. Backups taken by an older module version carry no snapshot;
+# This runs in restore-module only, NOT in clone-module: a clone copies the
+# source instance's own volume (handled by the core), so there is no snapshot to
+# put back. Backups taken by an older module version carry no snapshot either;
 # the volume's own webui.db is then kept as-is.
 
 set -e
