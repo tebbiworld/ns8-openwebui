@@ -155,6 +155,11 @@ lines = [
     # tool calls, garbage tokens); the legacy mode injects the knowledge-base
     # results into the prompt instead.
     'DEFAULT_MODEL_PARAMS={"function_calling":"legacy"}',
+    # Seed only: allow users to mint personal API keys (ENABLE_API_KEYS, off by
+    # default upstream). Needed for programmatic access such as the automated
+    # document upload into the knowledge base. Treat the keys as credentials; an
+    # administrator can turn this off again in the admin panel.
+    "ENABLE_API_KEYS=true",
     # The container runs with --network=host (see openwebui.service); bind the
     # web server to the loopback port allocated by the node only.
     "HOST=127.0.0.1",
