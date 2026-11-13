@@ -41,9 +41,31 @@ add-module ghcr.io/tebbiworld/openwebui:latest 1
 | Allow self-registration | `ENABLE_SIGNUP` | Local account signup. The **first** account becomes admin. |
 | Default role for new accounts | `DEFAULT_USER_ROLE` | `pending` (admin approval), `user`, or `admin`. Applies to first-login LDAP users too. |
 | Timezone | `TZ` | e.g. `Europe/Berlin`. |
+| Embedding engine | `RAG_EMBEDDING_ENGINE` | Knowledge-base base value. Empty = built-in model; `ollama` / `openai`. **Seed only — see below.** |
+| Embedding model | `RAG_EMBEDDING_MODEL` | e.g. `bge-m3:latest` for the Ollama engine. **Seed only — see below.** |
+| Top K | `RAG_TOP_K` | Passages retrieved per query (default 3). Seed only. |
+| Chunk size | `CHUNK_SIZE` | Indexing chunk size (default 1000). Seed only. |
+| Chunk overlap | `CHUNK_OVERLAP` | Overlap between chunks (default 100). Seed only. |
 
 `WEBUI_SECRET_KEY` is generated once at install time and kept stable so login
 sessions survive restarts.
+
+Security defaults worth knowing:
+
+* **Self-registration is off** (`ENABLE_SIGNUP=false`) unless you turn it on —
+  Open WebUI itself defaults it *on*, so the module overrides that and resets it
+  to the value on this page at every start. Leave it off when users log in via
+  AD/LDAP.
+* **Personal API keys are on** (`ENABLE_API_KEYS=true`, off by default upstream)
+  so programmatic clients can authenticate. This is a cluster-wide switch: it
+  lets **every** account mint API keys, not only an automation account. The keys
+  are credentials; once the automation's key is issued, turn the feature off
+  again in the admin panel if no interactive user needs it.
+* **LDAP certificate validation is on** for an `ldaps://` server of its own
+  (`LDAP_VALIDATE_CERT` follows the *Verify the server certificate* toggle,
+  default on; the CA chain is checked, the host name is not pinned so an internal
+  CA still works). It does not apply to a user domain reached through the node's
+  `ldapproxy` on the loopback, or to a plain `ldap://` connection.
 
 ### Active Directory / LDAP
 
@@ -86,20 +108,33 @@ Caveats of Open WebUI's native LDAP:
 
 Since 1.2.0 everything changed in the Open WebUI **admin panel** is kept across
 restarts, updates and backups (the embedding model under *Documents*, chunk
-size, *Top K*, API keys, default model parameters, ...). The settings listed in
-the two tables above are the exception: this page owns them. They are reset to
-the values saved here before every start, so change them here, not in the admin
-panel (additional Ollama connections go into the Ollama base URL field,
-separated by `;`). The Ollama URL used for embeddings follows the Ollama base
-URL as well.
+size, *Top K*, API keys, default model parameters, ...). Two groups of settings
+behave differently:
+
+* The **module-owned** settings (host, Ollama URL, sign-up, default role, LDAP,
+  interface name) are reset to the values on the settings page before every
+  start, so change them there, not in the admin panel (additional Ollama
+  connections go into the Ollama base URL field, separated by `;`). The Ollama
+  URL used for embeddings follows the Ollama base URL as well.
+* The **knowledge-base base values** (embedding engine/model, Top K, chunk
+  size/overlap) are *seed only*: the value on the settings page is applied when
+  the instance is **first set up** and is then owned by the database/admin
+  panel. Setting or changing one of these fields does **not** change an instance
+  that already holds documents — that is deliberate, see the warning below.
+
+> **Changing the embedding engine or model after documents are indexed makes the
+> existing knowledge bases unsearchable** (a different vector dimension). Do it
+> in the admin panel (*Settings → Documents*) and then re-index the knowledge
+> bases with the button on the same page. Never delete or reorder existing
+> collections; their contents and order are what the chat retrieves against.
 
 Recommendations for a local Ollama:
 
-* **Embedding model** (*Admin panel → Settings → Documents*): the built-in
-  `all-MiniLM-L6-v2` only understands English. For German or mixed documents
-  pull a multilingual model on the Ollama host (`ollama pull bge-m3`) and select
-  engine *Ollama*, model `bge-m3:latest`. Changing the model requires
-  re-indexing the knowledge bases (button on the same page).
+* **Embedding model**: the built-in `all-MiniLM-L6-v2` only understands English.
+  For German or mixed documents pull a multilingual model on the Ollama host
+  (`ollama pull bge-m3`) and, for a *new* instance, set engine *Ollama* and model
+  `bge-m3:latest` on the settings page; on an instance that already has knowledge
+  bases do it in the admin panel and re-index.
 * **Tool calling**: new instances start with the default model parameter
   `function_calling: legacy`. Open WebUI 0.11 otherwise lets the model call its
   built-in tools itself (knowledge search, questions to the user, ...), which
@@ -107,6 +142,42 @@ Recommendations for a local Ollama:
   tool calls, garbage tokens, no answer. In legacy mode the knowledge-base
   results are put into the prompt directly. It can be changed per model or
   globally in the admin panel.
+* **Context compaction** is off by default (`ENABLE_CONTEXT_COMPACTION`). When a
+  conversation exceeds `CONTEXT_COMPACTION_TOKEN_THRESHOLD` tokens (default
+  `80000`) Open WebUI summarises the older turns. The default never triggers on
+  a small context window, so if you enable compaction for a model served with
+  `num_ctx` 16384, set the threshold to roughly `10000` (clearly below the
+  window) or it will overflow first. Weigh it carefully for regulated use: the
+  summary is lossy, so the model may answer from a compressed history rather than
+  the verbatim text.
+
+### Knowledge base in a regulated (GMP) context
+
+The module makes Open WebUI available; it does not make it a validated system.
+If you use a knowledge base such as *GMP Wissen* or *Arzneimittelwerbung* to
+answer regulated questions, keep the following in mind:
+
+* **AI answers are not a GMP record.** A chat answer is generated from an
+  embedding search and a language model; it is not an attributable, reproducible
+  record and must not be used as evidence of a controlled fact. Always go back to
+  the authoritative, version-controlled source document.
+* **Keep an ingestion log.** Open WebUI does not version the files in a knowledge
+  base. Record separately — outside the chat — **which version of which document
+  was added to (or removed from) which collection and when**, so you can tell
+  later what the model could have retrieved at a given time.
+* **Protect the collections.** Changing the embedding engine/model, or deleting
+  or reordering a collection, breaks or silently changes what the chat retrieves.
+  Treat the *GMP Wissen* and *Arzneimittelwerbung* collections as controlled: no
+  embedding change without a re-index and a record of it.
+
+### Automated document upload (e.g. Huginn)
+
+If an automation such as Huginn uploads documents into a knowledge base through
+the Open WebUI API, give it a **dedicated, non-admin account** with a personal
+API key (API keys are enabled by default, see above). Grant it only what it
+needs — write access to the target knowledge base, not administrator rights —
+and treat the API key as a credential (store it in the automation's secret
+store, rotate it if leaked). Review the account's rights periodically.
 
 ## First steps
 

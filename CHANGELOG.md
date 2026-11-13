@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.4.0 — unreleased
+
+### Added
+
+- **Knowledge-base (RAG) base values on the settings page.** Optional fields for
+  the embedding engine and model, Top K and chunk size/overlap. They are written
+  to the environment as a *seed* only: Open WebUI stores them in its database on
+  first start and the database wins from then on, and these keys are deliberately
+  not reset on every start. So a value configures a fresh instance and never
+  silently changes an instance that already holds documents — which would make
+  the indexed knowledge bases unsearchable after an embedding change. The
+  settings page carries a warning to that effect; a later change is made in the
+  admin panel together with a re-index. This replaces hand-editing
+  `state/openwebui.env`, whose lines were lost on the next page save.
+
+### Changed
+
+- **Personal API keys are enabled by default** (`ENABLE_API_KEYS`, off upstream)
+  so programmatic clients — such as an automated document upload into the
+  knowledge base — can authenticate. Seed-once, so an instance that already has
+  the setting keeps its own value; an administrator can turn it off in the panel.
+
+### Documentation
+
+- A "Knowledge base in a regulated (GMP) context" section: AI answers are not a
+  GMP record, keep an ingestion log of which document version entered which
+  collection when, and treat the *GMP Wissen* / *Arzneimittelwerbung* collections
+  as controlled (no embedding change without a re-index).
+- How to run an automated upload (e.g. Huginn) with a dedicated non-admin
+  account and a scoped API key.
+- Context compaction (off by default) and why its token threshold has to be set
+  well below a small `num_ctx` window if it is enabled.
+- The security defaults are spelled out: sign-up off, API keys on, LDAP
+  certificate validation on for an `ldaps://` server of its own.
+
 ## 1.3.1 — 2026-11-11
 
 ### Fixed

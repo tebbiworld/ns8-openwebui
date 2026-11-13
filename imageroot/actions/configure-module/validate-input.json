@@ -90,6 +90,40 @@
             "description": "TZ database name for scheduling and log timestamps, e.g. Europe/Berlin.",
             "default": "UTC"
         },
+        "rag_embedding_engine": {
+            "type": "string",
+            "enum": ["", "ollama", "openai"],
+            "title": "Embedding engine",
+            "description": "Initial embedding engine for the knowledge base (RAG_EMBEDDING_ENGINE). Empty = Open WebUI's built-in model. Applied only when an instance is first set up; it does not change an instance that already holds documents (change the embedding in the admin panel and re-index).",
+            "default": ""
+        },
+        "rag_embedding_model": {
+            "type": "string",
+            "title": "Embedding model",
+            "description": "Initial embedding model (RAG_EMBEDDING_MODEL), e.g. bge-m3:latest for the Ollama engine. Seed value only; a later change must be made in the Open WebUI admin panel together with a re-index of the knowledge bases.",
+            "maxLength": 256
+        },
+        "rag_top_k": {
+            "type": ["integer", "null"],
+            "title": "Top K",
+            "description": "Initial number of knowledge-base passages retrieved per query (RAG_TOP_K). Empty = Open WebUI default (3).",
+            "minimum": 1,
+            "maximum": 100
+        },
+        "rag_chunk_size": {
+            "type": ["integer", "null"],
+            "title": "Chunk size",
+            "description": "Initial document chunk size for indexing (CHUNK_SIZE). Empty = Open WebUI default (1000).",
+            "minimum": 1,
+            "maximum": 100000
+        },
+        "rag_chunk_overlap": {
+            "type": ["integer", "null"],
+            "title": "Chunk overlap",
+            "description": "Initial overlap between document chunks (CHUNK_OVERLAP). Empty = Open WebUI default (100).",
+            "minimum": 0,
+            "maximum": 100000
+        },
         "ldap_enabled": {
             "type": "boolean",
             "title": "Enable AD/LDAP login",

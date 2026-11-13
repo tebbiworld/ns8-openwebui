@@ -50,6 +50,56 @@
               <template slot="text-right">{{ $t("settings.enabled") }}</template>
             </cv-toggle>
 
+            <!-- Knowledge base (RAG) -->
+            <h4 class="section">{{ $t("settings.rag_section") }}</h4>
+            <NsInlineNotification kind="warning" :title="$t('settings.rag_warning_title')" :description="$t('settings.rag_warning_desc')" :showCloseButton="false" class="info-tile" />
+            <cv-dropdown
+              :label="$t('settings.rag_embedding_engine')"
+              v-model="rag_embedding_engine"
+              :helper-text="$t('settings.rag_embedding_engine_helper')"
+              :disabled="loading.getConfiguration || loading.configureModule"
+              class="field"
+            >
+              <cv-dropdown-item value="">{{ $t("settings.rag_engine_builtin") }}</cv-dropdown-item>
+              <cv-dropdown-item value="ollama">{{ $t("settings.rag_engine_ollama") }}</cv-dropdown-item>
+              <cv-dropdown-item value="openai">{{ $t("settings.rag_engine_openai") }}</cv-dropdown-item>
+            </cv-dropdown>
+            <cv-text-input
+              :label="$t('settings.rag_embedding_model')"
+              v-model.trim="rag_embedding_model"
+              :placeholder="$t('settings.rag_embedding_model_placeholder')"
+              :helper-text="$t('settings.rag_embedding_model_helper')"
+              :disabled="loading.getConfiguration || loading.configureModule"
+              class="field"
+            ></cv-text-input>
+            <cv-number-input
+              :label="$t('settings.rag_top_k')"
+              v-model="rag_top_k"
+              :min="1"
+              :max="100"
+              :helper-text="$t('settings.rag_top_k_helper')"
+              :disabled="loading.getConfiguration || loading.configureModule"
+              class="field"
+            ></cv-number-input>
+            <cv-number-input
+              :label="$t('settings.rag_chunk_size')"
+              v-model="rag_chunk_size"
+              :min="1"
+              :max="100000"
+              :helper-text="$t('settings.rag_chunk_size_helper')"
+              :disabled="loading.getConfiguration || loading.configureModule"
+              class="field"
+            ></cv-number-input>
+            <cv-number-input
+              :label="$t('settings.rag_chunk_overlap')"
+              v-model="rag_chunk_overlap"
+              :min="0"
+              :max="100000"
+              :helper-text="$t('settings.rag_chunk_overlap_helper')"
+              :disabled="loading.getConfiguration || loading.configureModule"
+              class="field"
+            ></cv-number-input>
+
             <!-- Access -->
             <h4 class="section">{{ $t("settings.access_section") }}</h4>
             <cv-text-input
@@ -162,6 +212,11 @@ export default {
       default_user_role: "pending",
       enable_openai_api: false,
       timezone: "UTC",
+      rag_embedding_engine: "",
+      rag_embedding_model: "",
+      rag_top_k: null,
+      rag_chunk_size: null,
+      rag_chunk_overlap: null,
       ldap_enabled: false,
       ldap_label: "AD / LDAP",
       ldap_mail_attribute: "mail",
@@ -220,6 +275,11 @@ export default {
       this.default_user_role = c.default_user_role || "pending";
       this.enable_openai_api = !!c.enable_openai_api;
       this.timezone = c.timezone || "UTC";
+      this.rag_embedding_engine = c.rag_embedding_engine || "";
+      this.rag_embedding_model = c.rag_embedding_model || "";
+      this.rag_top_k = c.rag_top_k != null ? c.rag_top_k : null;
+      this.rag_chunk_size = c.rag_chunk_size != null ? c.rag_chunk_size : null;
+      this.rag_chunk_overlap = c.rag_chunk_overlap != null ? c.rag_chunk_overlap : null;
       this.ldap_enabled = !!c.ldap_enabled;
       this.ldap_label = c.ldap_label || "AD / LDAP";
       this.ldap_mail_attribute = c.ldap_mail_attribute || "mail";
@@ -228,6 +288,17 @@ export default {
       this.ldap_bind_password_set = !!c.ldap_bind_password_set;
       this.url = c.url || "";
       this.focusElement("host");
+    },
+    optInt(value) {
+      // An empty number field means "use Open WebUI's own default": send null.
+      // cv-number-input may report a cleared field as "", null or 0 depending on
+      // the browser; treat 0 as "unset" too (none of these base values is a
+      // meaningful 0 — Top K and chunk size reject it, and a 0 overlap is the
+      // default-100 case not worth distinguishing from empty).
+      if (value === "" || value === null || value === undefined) return null;
+      const n = Number(value);
+      if (!Number.isFinite(n) || n === 0) return null;
+      return n;
     },
     validateConfigureModule() {
       this.clearErrors(this);
@@ -285,6 +356,11 @@ export default {
         default_user_role: this.default_user_role,
         enable_openai_api: this.enable_openai_api,
         timezone: this.timezone || "UTC",
+        rag_embedding_engine: this.rag_embedding_engine || "",
+        rag_embedding_model: this.rag_embedding_model || "",
+        rag_top_k: this.optInt(this.rag_top_k),
+        rag_chunk_size: this.optInt(this.rag_chunk_size),
+        rag_chunk_overlap: this.optInt(this.rag_chunk_overlap),
         ldap_enabled: this.ldap_enabled,
         ldap_label: this.ldap_label || "AD / LDAP",
         ldap_mail_attribute: this.ldap_mail_attribute || "mail",
