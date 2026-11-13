@@ -37,6 +37,42 @@ def as_bool_str(value, default=False):
 
 data = json.load(sys.stdin)
 
+
+def opt_str(value):
+    return (value or "").strip()
+
+
+def opt_int(value, field, minimum):
+    """Parse an optional integer field: '' when unset, otherwise its value.
+
+    The input is already type- and range-checked by validate-input.json; this is
+    a defensive re-check. The field is ``minimum`` at the least (1 for Top K and
+    the chunk size, 0 for the overlap)."""
+    if value is None or value == "":
+        return ""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = None
+    if number is None or number < minimum:
+        agent.set_status("validation-failed")
+        json.dump(
+            [{"field": field, "parameter": field, "value": value, "error": "invalid_number"}],
+            fp=sys.stdout,
+        )
+        sys.exit(2)
+    return str(number)
+
+
+# Parse (and, defensively, validate) the optional knowledge-base base values up
+# front, before any agent.set_env side effect, so a rejected value aborts
+# without leaving a half-written environment.
+rag_embedding_engine = opt_str(data.get("rag_embedding_engine"))
+rag_embedding_model = opt_str(data.get("rag_embedding_model"))
+rag_top_k = opt_int(data.get("rag_top_k"), "rag_top_k", 1)
+rag_chunk_size = opt_int(data.get("rag_chunk_size"), "rag_chunk_size", 1)
+rag_chunk_overlap = opt_int(data.get("rag_chunk_overlap"), "rag_chunk_overlap", 0)
+
 # --- Traefik transport -------------------------------------------------------
 host = data["host"]
 h2hs = data.get("http2https", True)
@@ -69,47 +105,17 @@ agent.set_env("DEFAULT_USER_ROLE", default_user_role)
 agent.set_env("TZ", timezone)
 
 # --- Knowledge base (RAG) base values ----------------------------------------
-# Optional seed-once defaults for Open WebUI's retrieval settings (embedding
-# engine/model, Top K, chunking). They are written to the env file only as a
-# seed: with ENABLE_PERSISTENT_CONFIG=true Open WebUI copies a key from the
-# environment into its database only while the key is still missing, and the
-# database wins from then on. These keys are deliberately NOT reset by
-# bin/enforce-module-settings, so a value set here configures a FRESH instance
-# and never silently overrides what an existing instance already has. That
-# matters above all for the embedding engine/model: changing it on an instance
-# that already holds documents makes the indexed knowledge bases unsearchable
-# (a different vector dimension), so that change has to be made in the Open
-# WebUI admin panel together with a re-index, not from here.
-
-
-def opt_str(value):
-    return (value or "").strip()
-
-
-def opt_int(value, field, minimum):
-    """An optional non-negative integer field: '' when unset, else validated."""
-    if value is None or value == "":
-        return ""
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        number = None
-    if number is None or number < minimum:
-        agent.set_status("validation-failed")
-        json.dump(
-            [{"field": field, "parameter": field, "value": value, "error": "invalid_number"}],
-            fp=sys.stdout,
-        )
-        sys.exit(2)
-    return str(number)
-
-
-rag_embedding_engine = opt_str(data.get("rag_embedding_engine"))
-rag_embedding_model = opt_str(data.get("rag_embedding_model"))
-rag_top_k = opt_int(data.get("rag_top_k"), "rag_top_k", 1)
-rag_chunk_size = opt_int(data.get("rag_chunk_size"), "rag_chunk_size", 1)
-rag_chunk_overlap = opt_int(data.get("rag_chunk_overlap"), "rag_chunk_overlap", 0)
-
+# The values were parsed near the top of this step. They are written to the env
+# file only as a seed: with ENABLE_PERSISTENT_CONFIG=true Open WebUI copies a
+# key from the environment into its database only while the key is still
+# missing, and the database wins from then on. These keys are deliberately NOT
+# reset by bin/enforce-module-settings, so a value set here configures a FRESH
+# instance and never silently overrides what an existing instance already has.
+# That matters above all for the embedding engine/model: changing it on an
+# instance that already holds documents makes the indexed knowledge bases
+# unsearchable (a different vector dimension), so that change has to be made in
+# the Open WebUI admin panel together with a re-index, not from here.
+#
 # Echoed back by get-configuration (the configured seed, not the live database
 # value, which the admin panel may have changed).
 agent.set_env("RAG_EMBEDDING_ENGINE", rag_embedding_engine)
@@ -174,7 +180,8 @@ lines = [
     f"TZ={timezone}",
 ]
 # RAG base values: appended only when set, as seed-once values (see above). When
-# all are left empty the file is byte-for-byte what earlier versions produced.
+# a field is left empty no line is written for it (so an empty instance keeps
+# Open WebUI's own default); the rest of the file is unchanged.
 for seed_key, seed_value in (
     ("RAG_EMBEDDING_ENGINE", rag_embedding_engine),
     ("RAG_EMBEDDING_MODEL", rag_embedding_model),

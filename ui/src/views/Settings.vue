@@ -290,11 +290,15 @@ export default {
       this.focusElement("host");
     },
     optInt(value) {
-      // An empty number field means "use Open WebUI's own default": send null,
-      // not 0 or "".
+      // An empty number field means "use Open WebUI's own default": send null.
+      // cv-number-input may report a cleared field as "", null or 0 depending on
+      // the browser; treat 0 as "unset" too (none of these base values is a
+      // meaningful 0 — Top K and chunk size reject it, and a 0 overlap is the
+      // default-100 case not worth distinguishing from empty).
       if (value === "" || value === null || value === undefined) return null;
       const n = Number(value);
-      return Number.isFinite(n) ? n : null;
+      if (!Number.isFinite(n) || n === 0) return null;
+      return n;
     },
     validateConfigureModule() {
       this.clearErrors(this);

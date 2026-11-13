@@ -57,8 +57,10 @@ Security defaults worth knowing:
   to the value on this page at every start. Leave it off when users log in via
   AD/LDAP.
 * **Personal API keys are on** (`ENABLE_API_KEYS=true`, off by default upstream)
-  so programmatic clients can authenticate. The keys are credentials; turn the
-  feature off in the admin panel if nothing needs it.
+  so programmatic clients can authenticate. This is a cluster-wide switch: it
+  lets **every** account mint API keys, not only an automation account. The keys
+  are credentials; once the automation's key is issued, turn the feature off
+  again in the admin panel if no interactive user needs it.
 * **LDAP certificate validation is on** for an `ldaps://` server of its own
   (`LDAP_VALIDATE_CERT` follows the *Verify the server certificate* toggle,
   default on; the CA chain is checked, the host name is not pinned so an internal
