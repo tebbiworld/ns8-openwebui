@@ -29,6 +29,13 @@ config = {
     "default_user_role": os.getenv("DEFAULT_USER_ROLE", "pending"),
     "enable_openai_api": os.getenv("ENABLE_OPENAI_API", "false") == "true",
     "timezone": os.getenv("TZ", "UTC"),
+    # RAG base values (the configured seed; blank/null = Open WebUI's own
+    # default is used when the instance is first set up).
+    "rag_embedding_engine": os.getenv("RAG_EMBEDDING_ENGINE", ""),
+    "rag_embedding_model": os.getenv("RAG_EMBEDDING_MODEL", ""),
+    "rag_top_k": int(os.environ["RAG_TOP_K"]) if os.getenv("RAG_TOP_K") else None,
+    "rag_chunk_size": int(os.environ["CHUNK_SIZE"]) if os.getenv("CHUNK_SIZE") else None,
+    "rag_chunk_overlap": int(os.environ["CHUNK_OVERLAP"]) if os.getenv("CHUNK_OVERLAP") else None,
     "ldap_enabled": os.getenv("LDAP_ENABLED", "false").strip().lower() in ("1", "true"),
     "ldap_label": os.getenv("LDAP_LABEL", "AD / LDAP"),
     "ldap_mail_attribute": os.getenv("LDAP_MAIL_ATTRIBUTE", "mail"),

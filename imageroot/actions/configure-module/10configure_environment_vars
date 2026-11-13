@@ -68,6 +68,56 @@ agent.set_env("ENABLE_OPENAI_API", enable_openai_api)
 agent.set_env("DEFAULT_USER_ROLE", default_user_role)
 agent.set_env("TZ", timezone)
 
+# --- Knowledge base (RAG) base values ----------------------------------------
+# Optional seed-once defaults for Open WebUI's retrieval settings (embedding
+# engine/model, Top K, chunking). They are written to the env file only as a
+# seed: with ENABLE_PERSISTENT_CONFIG=true Open WebUI copies a key from the
+# environment into its database only while the key is still missing, and the
+# database wins from then on. These keys are deliberately NOT reset by
+# bin/enforce-module-settings, so a value set here configures a FRESH instance
+# and never silently overrides what an existing instance already has. That
+# matters above all for the embedding engine/model: changing it on an instance
+# that already holds documents makes the indexed knowledge bases unsearchable
+# (a different vector dimension), so that change has to be made in the Open
+# WebUI admin panel together with a re-index, not from here.
+
+
+def opt_str(value):
+    return (value or "").strip()
+
+
+def opt_int(value, field, minimum):
+    """An optional non-negative integer field: '' when unset, else validated."""
+    if value is None or value == "":
+        return ""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = None
+    if number is None or number < minimum:
+        agent.set_status("validation-failed")
+        json.dump(
+            [{"field": field, "parameter": field, "value": value, "error": "invalid_number"}],
+            fp=sys.stdout,
+        )
+        sys.exit(2)
+    return str(number)
+
+
+rag_embedding_engine = opt_str(data.get("rag_embedding_engine"))
+rag_embedding_model = opt_str(data.get("rag_embedding_model"))
+rag_top_k = opt_int(data.get("rag_top_k"), "rag_top_k", 1)
+rag_chunk_size = opt_int(data.get("rag_chunk_size"), "rag_chunk_size", 1)
+rag_chunk_overlap = opt_int(data.get("rag_chunk_overlap"), "rag_chunk_overlap", 0)
+
+# Echoed back by get-configuration (the configured seed, not the live database
+# value, which the admin panel may have changed).
+agent.set_env("RAG_EMBEDDING_ENGINE", rag_embedding_engine)
+agent.set_env("RAG_EMBEDDING_MODEL", rag_embedding_model)
+agent.set_env("RAG_TOP_K", rag_top_k)
+agent.set_env("CHUNK_SIZE", rag_chunk_size)
+agent.set_env("CHUNK_OVERLAP", rag_chunk_overlap)
+
 # --- Directory login (shared building block) ---------------------------------
 # domain  = a user domain of this cluster (ldapproxy, no credentials stored)
 # custom  = an LDAP server of its own (URL/bind DN in the environment, bind
@@ -118,6 +168,17 @@ lines = [
     f"DEFAULT_USER_ROLE={default_user_role}",
     f"TZ={timezone}",
 ]
+# RAG base values: appended only when set, as seed-once values (see above). When
+# all are left empty the file is byte-for-byte what earlier versions produced.
+for seed_key, seed_value in (
+    ("RAG_EMBEDDING_ENGINE", rag_embedding_engine),
+    ("RAG_EMBEDDING_MODEL", rag_embedding_model),
+    ("RAG_TOP_K", rag_top_k),
+    ("CHUNK_SIZE", rag_chunk_size),
+    ("CHUNK_OVERLAP", rag_chunk_overlap),
+):
+    if seed_value != "":
+        lines.append(f"{seed_key}={seed_value}")
 os.umask(0o077)
 with open("openwebui.env.tmp", "w") as fp:
     fp.write("\n".join(lines) + "\n")
